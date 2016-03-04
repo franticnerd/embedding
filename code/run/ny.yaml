@@ -1,0 +1,24 @@
+file:
+  dir: &DIR ../../data/ny/
+  raw:
+    dir: &RAW_DIR !join [*DIR, raw/]
+    tweets: !join [*RAW_DIR, tweets.txt]
+  input:
+    dir: &IN_DIR !join [*DIR, input/]
+    text: !join [*IN_DIR, message.txt]
+  output:
+    dir: &OUT_DIR !join [*DIR, output/]
+    entropy: !join [*OUT_DIR, entropy.txt]
+    activity: !join [*OUT_DIR, activity.txt]
+    nonactivity: !join [*OUT_DIR, nonactivity.txt]
+
+mongo:
+  dns: dmserv4.cs.illinois.edu
+  port: 11111
+  db: ny9m
+  tweet: raw
+  index: inverted-index
+  exp: embedding-exp
+
+# partition granularity
+grid: [50, 50, 100]
