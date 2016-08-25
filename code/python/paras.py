@@ -1,7 +1,8 @@
 from gsm2vec import *
 
 def convert_ts(ts):
-	return (ts/3600)%(24*7)
+	return (ts/60)%(60*24*7)
+	# return (ts/3600)%(24*7)
 	# return (ts/3600)%24
 
 # pd stands for parasDict
@@ -15,7 +16,7 @@ pd["threads"] = 10
 pd["train_ratio"] = 0.98
 pd["data_size"] = 100000
 pd["fake_num"] = 10
-pd["predict_type"] = 't'
+pd["predict_type"] = 'w'
 pd["rand_seed"] = 2
 
 pd["ntList"] = ['l','t','w']
@@ -26,8 +27,8 @@ pd["etList"] = ['ll','tt','ww','lt','tw','wl','tl','wt','lw']
 # pd["etList"] = ['lt','tw','wl']
 
 pd["lClus"] = MeanshiftClus
-pd["tClus"] = TVoidClus
-# pd["tClus"] = MeanshiftClus
+# pd["tClus"] = TVoidClus
+pd["tClus"] = MeanshiftClus
 pd["convert_ts"] = convert_ts
 pd["bandwidth_l"] = 0.01
 pd["bandwidth_t"] = 10

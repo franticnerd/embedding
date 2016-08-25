@@ -32,9 +32,11 @@ class Gsm2vecPredictor:
 	def prepare_training_data(self, tweets):
 		nt2nodes = {nt:set() for nt in self.pd["ntList"]}
 		et2net = {et:defaultdict(lambda : defaultdict(int)) for et in self.pd["etList"]}
-		ls = self.lClus.fit( [[tweet.lat,tweet.lng] for tweet in tweets] )
-		ts = self.tClus.fit( [[self.pd["convert_ts"](tweet.ts)] for tweet in tweets] )
 		texts = [tweet.words for tweet in tweets]
+		locations = [[tweet.lat,tweet.lng] for tweet in tweets]
+		times  = [[self.pd["convert_ts"](tweet.ts)] for tweet in tweets]
+		ls = self.lClus.fit(locations)
+		ts = self.tClus.fit(times)
 
 		# encode_continuous_proximity
 		print "encoding_continuous_proximity"
@@ -47,19 +49,28 @@ class Gsm2vecPredictor:
 		voca = set(zip(*word_localness)[0])
 		voca.remove("")
 
-		for l,t,text in zip(ls,ts,texts):
-			# from text, only retain those words appearing in voca
-			words = [w for w in text if w in voca]
+		for location,time,text,l,t in zip(locations,times,texts,ls,ts):
 			nt2nodes['l'].add(l)
 			nt2nodes['t'].add(t)
 			et2net['lt'][l][t] += 1
-			et2net['tl'][l][t] += 1
+			et2net['tl'][t][l] += 1
+			# topl2weight = self.lClus.tops(location)
+			# topt2weight = self.tClus.tops(time)
+			# for topt in topt2weight:
+			# 	et2net['lt'][l][topt] += topt2weight[topt]
+			# for topl in topl2weight:
+			# 	et2net['tl'][t][topl] += topl2weight[topl]
+			words = [w for w in text if w in voca] # from text, only retain those words appearing in voca
 			for w in words:
 				nt2nodes['w'].add(w)
 				et2net['tw'][t][w] += 1
-				et2net['wt'][t][w] += 1
+				et2net['wt'][w][t] += 1
 				et2net['wl'][w][l] += 1
-				et2net['lw'][w][l] += 1
+				et2net['lw'][l][w] += 1
+				# for topt in topt2weight:
+				# 	et2net['wt'][w][topt] += topt2weight[topt]
+				# for topl in topl2weight:
+				# 	et2net['wl'][w][topl] += topl2weight[topl]
 			for w1,w2 in itertools.combinations(words,r=2):
 				if 'ww' in et2net:
 					et2net['ww'][w1][w2] += 1
@@ -130,6 +141,10 @@ class MeanshiftClus:
 
 	def get_centers(self):
 		return [list(center) for center in self.ms.cluster_centers_]
+
+	# def tops(self,x):
+	# 	candidates = [(clus,) for clus in range(len(self.ms.cluster_centers_))]
+
 
 class LGridClus:
 	def __init__(self,grid_num):
@@ -223,7 +238,7 @@ class Gsm2vec_line:
 	def read_line_output(self):
 		for nt in self.pd["ntList"]:
 			if nt==self.pd["predict_type"]:
-				vecs_file = open(self.io.line_dir+"output-"+nt+".txt",'r')
+				vecs_file = open(self.io.line_dir+"context-"+nt+".txt",'r')
 			else:
 				vecs_file = open(self.io.line_dir+"output-"+nt+".txt",'r')
 			vecs = dict()
