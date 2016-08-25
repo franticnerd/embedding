@@ -8,6 +8,7 @@ class Distribution:
         self.data = {}
 
     # add the value for the given dimension
+    # the value along each dimension now is a set of tweets
     def add_value(self, dim, value):
         old_value = self.data.get(dim, set())
         old_value.add(value)
@@ -19,6 +20,7 @@ class Distribution:
             ret += len(self.data[key])
         return ret
 
+    # after normalization, value along each dimension becomes a "probability"
     def normalize(self):
         l1_norm = self.get_l1_norm()
         for key in self.data:

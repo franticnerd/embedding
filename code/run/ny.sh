@@ -1,4 +1,5 @@
 #!/bin/zsh
+source /Users/keyangzhang/Documents/UIUC/Engineer/Python/venv/bin/activate
 
 # parameter file
 para_file='./ny.yaml'

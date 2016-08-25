@@ -1,4 +1,7 @@
 #!/bin/zsh
+export LC_ALL=en_US.UTF-8
+export LANG=en_US.UTF-8
+source /Users/keyangzhang/Documents/UIUC/Engineer/Python/venv/bin/activate
 
 # parameter file
 para_file='./la.yaml'
@@ -28,6 +31,6 @@ function post {
   python $python_dir'postprocess.py' $para_file
 }
 
-# pre
+pre
 # run
-post
+# post
