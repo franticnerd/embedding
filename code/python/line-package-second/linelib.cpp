@@ -319,7 +319,7 @@ void line_trainer_edge::init(char edge_type, line_hin *p_hin, int negative)
     }
 }
 
-void line_trainer_edge::train_sample(real alpha, real *_error_vec, double (*func_rand_num)(), unsigned long long &rand_index)
+void line_trainer_edge::train_sample(real alpha, real *_error_vec, double (*func_rand_num)(), unsigned long long &rand_index, int second_order)
 {
     int target, label, u, v, index, vector_size;
     real f, g;
@@ -348,13 +348,16 @@ void line_trainer_edge::train_sample(real alpha, real *_error_vec, double (*func
             if (target == v) continue;
             label = 0;
         }
-        f = node_u->cvec.row(u) * node_v->vec.row(target).transpose();
+        if (second_order) f = node_u->vec.row(u) * node_v->cvec.row(target).transpose();
+        else f = node_u->vec.row(u) * node_v->vec.row(target).transpose();
         if (f > MAX_EXP) g = (label - 1) * alpha;
         else if (f < -MAX_EXP) g = (label - 0) * alpha;
         else g = (label - expTable[(int)((f + MAX_EXP) * (EXP_TABLE_SIZE / MAX_EXP / 2))]) * alpha;
-        error_vec += g * ((node_v->vec.row(target)));
-        node_v->vec.row(target) += g * ((node_u->cvec.row(u)));
+        if (second_order) error_vec += g * ((node_v->cvec.row(target)));
+        else error_vec += g * ((node_v->vec.row(target)));
+        if (second_order) node_v->cvec.row(target) += g * ((node_u->vec.row(u)));
+        else node_v->vec.row(target) += g * ((node_u->vec.row(u)));
     }
-    node_u->cvec.row(u) += error_vec;
+    node_u->vec.row(u) += error_vec;
     new (&error_vec) Eigen::Map<BLPMatrix>(NULL, 0, 0);
 }

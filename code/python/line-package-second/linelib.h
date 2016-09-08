@@ -102,5 +102,5 @@ public:
     ~line_trainer_edge();
     
     void init(char edge_type, line_hin *p_hin, int negative);
-    void train_sample(real alpha, real *_error_vec, double (*func_rand_num)(), unsigned long long &rand_index);
+    void train_sample(real alpha, real *_error_vec, double (*func_rand_num)(), unsigned long long &rand_index, int second_order);
 };

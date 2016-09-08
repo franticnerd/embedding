@@ -19,7 +19,6 @@ file:
     dir: &MODEL_DIR !join [*DIR, models/]
   line: 
     dir: &LINE_DIR ../python/line-package-second/
-    # dir: &LINE_DIR ../python/line-package/
 
 mongo:
   dns: dmserv4.cs.illinois.edu

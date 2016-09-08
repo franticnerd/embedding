@@ -30,7 +30,7 @@ char link_file_wl[MAX_STRING]="edge-wl.txt",link_file_lt[MAX_STRING]="edge-lt.tx
 char link_file_lw[MAX_STRING]="edge-lw.txt",link_file_tl[MAX_STRING]="edge-tl.txt",link_file_wt[MAX_STRING]="edge-wt.txt";
 char output_file_w[MAX_STRING]="output-w.txt", output_file_l[MAX_STRING]="output-l.txt", output_file_t[MAX_STRING]="output-t.txt";  
 char context_file_w[MAX_STRING]="context-w.txt", context_file_l[MAX_STRING]="context-l.txt", context_file_t[MAX_STRING]="context-t.txt";  
-int binary = 0, num_threads = 1, vector_size = 100, negative = 5;
+int binary = 0, num_threads = 1, vector_size = 100, negative = 5, second_order=1;
 long long samples = 1, edge_count_actual;
 real alpha = 0.025, starting_alpha;
 
@@ -68,15 +68,15 @@ void *training_thread(void *id)
             if (alpha < starting_alpha * 0.0001) alpha = starting_alpha * 0.0001;
         }
         
-        trainer_edge_ww.train_sample(alpha, error_vec, func_rand_num, next_random);
-        trainer_edge_ll.train_sample(alpha, error_vec, func_rand_num, next_random);
-        trainer_edge_tt.train_sample(alpha, error_vec, func_rand_num, next_random);
-        trainer_edge_wl.train_sample(alpha, error_vec, func_rand_num, next_random);
-        trainer_edge_lt.train_sample(alpha, error_vec, func_rand_num, next_random);
-        trainer_edge_tw.train_sample(alpha, error_vec, func_rand_num, next_random);
-        trainer_edge_lw.train_sample(alpha, error_vec, func_rand_num, next_random);
-        trainer_edge_tl.train_sample(alpha, error_vec, func_rand_num, next_random);
-        trainer_edge_wt.train_sample(alpha, error_vec, func_rand_num, next_random);
+        trainer_edge_ww.train_sample(alpha, error_vec, func_rand_num, next_random, second_order);
+        trainer_edge_ll.train_sample(alpha, error_vec, func_rand_num, next_random, second_order);
+        trainer_edge_tt.train_sample(alpha, error_vec, func_rand_num, next_random, second_order);
+        trainer_edge_wl.train_sample(alpha, error_vec, func_rand_num, next_random, second_order);
+        trainer_edge_lt.train_sample(alpha, error_vec, func_rand_num, next_random, second_order);
+        trainer_edge_tw.train_sample(alpha, error_vec, func_rand_num, next_random, second_order);
+        trainer_edge_lw.train_sample(alpha, error_vec, func_rand_num, next_random, second_order);
+        trainer_edge_tl.train_sample(alpha, error_vec, func_rand_num, next_random, second_order);
+        trainer_edge_wt.train_sample(alpha, error_vec, func_rand_num, next_random, second_order);
         
         edge_count += 1;
     }
@@ -189,6 +189,7 @@ int main(int argc, char **argv) {
     if ((i = ArgPos((char *)"-samples", argc, argv)) > 0) samples = (long long)(atof(argv[i + 1])*1000000);
     if ((i = ArgPos((char *)"-alpha", argc, argv)) > 0) alpha = atof(argv[i + 1]);
     if ((i = ArgPos((char *)"-threads", argc, argv)) > 0) num_threads = atoi(argv[i + 1]);
+    if ((i = ArgPos((char *)"-second_order", argc, argv)) > 0) second_order = atoi(argv[i + 1]);
     TrainModel();
     return 0;
 }
