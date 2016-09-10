@@ -32,8 +32,8 @@ class Preprocessor:
 
     def compute_word_entropy(self):
         vocab_entropy = self.db.get_word_localness(self.io.num_bins, self.io.entropy_file, compute=False)
-        # self.db.write_activity_tweets(vocab_entropy, 0.0001, self.io.activity_file)
-        self.db.write_nonactivity_tweets(vocab_entropy, 0.05, self.io.nonactivity_file)
+        self.db.write_activity_tweets(vocab_entropy, 0.0001, self.io.activity_file)
+        # self.db.write_nonactivity_tweets(vocab_entropy, 0.05, self.io.nonactivity_file)
 
     def embed_doc(self):
         documents = LabeledLineSentence(self.io.clean_text_file)
@@ -48,5 +48,5 @@ class Preprocessor:
 if __name__ == '__main__':
     p = Preprocessor(sys.argv[1])
     p.prepare_data()
-    # p.compute_word_entropy()
+    p.compute_word_entropy()
     # p.embed_doc()

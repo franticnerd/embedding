@@ -17,8 +17,6 @@ class IO:
         self.exp = self.para['mongo']['exp']
         self.num_bins = self.para['grid']
 
-
-
     def init_files(self):
         # raw files
         self.raw_tweet_file = self.para['file']['raw']['tweets']
@@ -30,4 +28,4 @@ class IO:
         self.activity_file = self.para['file']['output']['activity']
         self.nonactivity_file = self.para['file']['output']['nonactivity']
         # embedding file
-        self.embed_file = self.para['file']['output']['embed']
+        self.embed_files = self.para['file']['output']['embed']
