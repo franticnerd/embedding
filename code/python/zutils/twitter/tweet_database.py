@@ -6,6 +6,12 @@ from word_distribution import Distribution
 from math import log
 import operator
 import codecs
+from bson.objectid import ObjectId
+import folium
+from zutils import text_processor, timestamp
+import random
+import cPickle as pickle
+from scipy.stats import entropy
 
 class TweetDatabase:
 
@@ -25,125 +31,6 @@ class TweetDatabase:
                 self.index_col = self.db[index_col_name]
         except:
             print 'Unable to connect to mongoDB.'
-
-    '''
-    Read and clean tweets
-    '''
-    # get tweets from mongo db
-    def get_tweets_from_db(self, query=None):
-        cnt = 0
-        for o in self.tweet_col.find(query):
-            tweet = Tweet()
-            tweet.load_from_mongo(o)
-            cnt += 1
-            if cnt % 10000 == 0:
-                print 'Loaded %d tweets from mongodb.' % cnt
-            yield tweet
-
-    # read the raw tweet file line by line
-    def get_tweets_from_file(self):
-        with open(self.tweet_file, 'r') as fin:
-            for line in fin:
-                tweet = Tweet()
-                try:
-                    tweet.load(line)
-                except:
-                    continue
-                yield tweet
-
-
-    # write tweets from the tweet file into the mongo db.
-    def dump_tweet_file_to_mongo(self, min_word_count=3):
-        self.remove_tweets_from_db()  # remove all the tweets from db
-        cnt, batch = 0, []
-        # get the set of inserted tweet ids to avoid duplicates
-        inserted_tweets = self.get_mongodb_tweet_ids()
-        for tweet in self.get_tweets_from_file():
-            if tweet.id in inserted_tweets or tweet.num_words() < min_word_count:
-                continue
-            batch.append(tweet.to_dict())
-            inserted_tweets.add(tweet.id)
-            cnt += 1
-            if len(batch) == 10000:
-                self.tweet_col.insert(batch)
-                batch = []
-                print 'Finished processing', cnt, 'tweets'
-        self.tweet_col.insert(batch)
-        print 'Done processing', cnt, 'tweets'
-        # creat index
-        self.tweet_col.ensure_index("timestamp")
-        self.tweet_col.ensure_index("lat")
-        self.tweet_col.ensure_index("lng")
-        self.tweet_col.ensure_index("id")
-
-
-    # read num tweets from the raw tweet file, and write to a json file
-    def dump_tweets_file_to_json(self, json_file, num=sys.maxint):
-        cnt = 0
-        with open(json_file, 'w') as fout:
-            for tweet in self.get_tweets_from_file():
-                fout.write(tweet.to_json_string() + '\n')
-                cnt += 1
-                if cnt % 10000 == 0:
-                    print 'Dumped json files for %d tweets.' % cnt
-                if cnt == num:
-                    break
-        print 'Finished writing %d tweets to json.' % cnt
-
-    # dump num clean tweets into the output file
-    def dump_clean_tweets_to_file(self, output_file, num=sys.maxint, min_word_count=3):
-        cnt = 0
-        with open(output_file, 'w') as fout:
-            for tweet in self.get_tweets_from_file():
-                if tweet.num_words() < min_word_count:
-                    continue
-                fout.write(tweet.to_string() + '\n')
-                cnt += 1
-                if cnt % 10000 == 0:
-                    print 'Dumped clean tweets for %d tweets.' % cnt
-                if cnt == num:
-                    break
-        print 'Finished dumping %d clean tweets.' % cnt
-
-    # read clean tweets
-    def read_clean_tweets_from_file(self, clean_tweet_file):
-        with open(clean_tweet_file, 'r') as fin:
-            for line in fin:
-                tweet = Tweet()
-                tweet.parse_clean_tweet(line)
-                yield tweet
-
-
-    # dump clean text for num tweets into the output file
-    # when training doc2vex, prefix needs to be used
-    def dump_tweet_text(self, output_file, prefix=False, num=sys.maxint):
-        cnt = 0
-        with open(output_file, 'w') as fout:
-            for tweet in self.get_tweets_from_file():
-                # if there are too few words in a tweet, ignore it.
-                if tweet.num_words() < 2:  continue
-                text = tweet.get_clean_words_string() if prefix == False else \
-                        '_*' + str(cnt) + ' ' + tweet.get_clean_words_string()
-                fout.write(text + '\n')
-                cnt += 1
-                if cnt % 10000 == 0:
-                    print 'Dumped text for %d tweets.' % cnt
-                if cnt == num:
-                    break
-        print 'Finished dumping text for %d tweets.' % cnt
-
-    # input: set of tweet ids, fetch tweets from db and write to file
-    def write_tweets_to_file(self, tweet_ids, out_file):
-        print 'Need to write %d tweets' %  len(tweet_ids)
-        num_written = 0
-        with codecs.open(out_file, 'w', 'utf-8') as fout:
-            for tid in tweet_ids:
-                tweet = self.get_one_tweet(tid)
-                fout.write(','.join([str(tweet.lat), str(tweet.lng), tweet.created_at, tweet.text]) + '\n')
-                num_written += 1
-                if num_written % 1000 == 0:
-                    print 'Finished writing %d / %d tweets' % (num_written, len(tweet_ids))
-        print 'Finished writing %d tweets' % len(tweet_ids)
 
     '''
     Database operations
@@ -212,18 +99,9 @@ class TweetDatabase:
         tweet_ids = self.index_col.find_one({'word': word})['list']
         return len(tweet_ids)
 
-
     '''
     Word spatiotemporal Distribution and localness
     '''
-    # compute the spatiotemporal distributions for words
-    def get_word_distributions(self, grid_bin_list):
-        grid = self.__init_grid(grid_bin_list)
-        vocab_vector = {}  # key: word, value: spatiotemporal localness
-        for tweet in self.get_tweets_from_db():
-            self.update_vocab_vector(vocab_vector, grid, tweet, grid_bin_list)
-        return vocab_vector
-
 
     def __init_grid(self, grid_bin_list):
         min_lat, max_lat = self.get_attribute_min('lat'), self.get_attribute_max('lat')
@@ -251,22 +129,16 @@ class TweetDatabase:
             vector.add_value(dim, tweet.uid)
             vocab_vector[word] = vector
 
-    def get_word_localness(self, grid_bin_list, localness_file, compute=True, min_frequency=200, freq_thresh=40000):
-        if compute:
-            vocab_vector = self.get_word_distributions(grid_bin_list)
-            vocab_localness = self.compute_word_localness(vocab_vector, min_frequency, freq_thresh)
-            self.write_localness(vocab_localness, localness_file)
-        else:
-            return self.load_localness(localness_file)
-
     # compute the kl divergence
     def compute_word_localness(self, vocab_vector, min_frequency, freq_thresh):
         vocab_localness = []
         for word, vector in vocab_vector.items():
-            # remove too infrequent words
             frequecy = vector.get_l1_norm()
-            if  frequecy < min_frequency:
-                continue
+
+            # remove too infrequent words
+            # if  frequecy < min_frequency:
+            #     continue
+
             # KL divergence
             if frequecy < freq_thresh:
                 localness = log(frequecy) - vector.get_entropy()
@@ -295,6 +167,7 @@ class TweetDatabase:
         tweet_ids = self.find_activity_tweet_ids(word_localness, fraction)
         self.write_tweets_to_file(tweet_ids, out_file)
 
+    # a tweet is an activity tweet iff it has at least one high localness word
     def find_activity_tweet_ids(self, word_localness, fraction):
         tweet_ids = set()
         n_words = int(len(word_localness) * fraction)
@@ -319,18 +192,133 @@ class TweetDatabase:
         return tweet_ids
 
 
+####################################################################################
+
+    # get tweets from mongo db
+    def get_tweets_from_db(self, query=None):
+        cnt = 0
+        for o in self.tweet_col.find(query):
+            tweet = Tweet()
+            tweet.load_from_mongo(o)
+            cnt += 1
+            if cnt % 100000 == 0:
+                print 'Loaded %d tweets from mongodb.' % cnt
+            yield tweet
+
+    def get_tweets_phrases_from_db(self, query=None):
+        cnt = 0
+        phrases = []
+        for o in self.tweet_col.find(query):
+            cnt += 1
+            if cnt % 100000 == 0:
+                print 'Loaded %d tweets from mongodb.' % cnt
+            phrases.append(o['phrases'])
+        return phrases
+
+    def add_phrases_field_to_db(self, input_file):
+        with open(input_file, 'r') as fin:
+            i = 0
+            for line in fin:
+                line = line.strip()
+                fields = line.split("\t")
+                _id,text = fields
+                _id = ObjectId(_id)
+                if self.tweet_col.count({"_id":_id})!=1:
+                    print _id,line
+                    break
+                phrases = []
+                phrase = ""
+                openBracket = False
+                for c in text:
+                    if openBracket:
+                        if c=="]":
+                            openBracket = False
+                            phrases.append(phrase)
+                            phrase = ""
+                        else:
+                            phrase += c
+                    else:
+                        if c=="[":
+                            openBracket = True
+                        elif c==" ":
+                            phrases.append(phrase)
+                            phrase = ""
+                        else:
+                            phrase += c
+                phrases.append(phrase)
+                self.tweet_col.update_one({"_id":_id}, {'$set':{"phrases":phrases}})
+                if i % 100000 == 0:
+                    print 'Updated %d tweets from mongodb.' % i
+                i += 1
+
+    # compute the spatiotemporal distributions for words
+    def get_word_distributions(self, grid_bin_list, min_frequency=100):
+        grid = self.__init_grid(grid_bin_list)
+        vocab_vector = {}  # key: word, value: spatiotemporal localness
+        for tweet in self.get_tweets_from_db():
+            self.update_vocab_vector(vocab_vector, grid, tweet, grid_bin_list)
+        return {word:vector for word, vector in vocab_vector.items() if vector.get_l1_norm()>=min_frequency}
+
+    def get_word_localness(self, grid_bin_list, localness_file, compute=True, min_frequency=100, freq_thresh=40000):
+        if compute:
+            vocab_vector = self.get_word_distributions(grid_bin_list)
+            vocab_localness = self.compute_word_localness(vocab_vector, min_frequency, freq_thresh)
+            self.write_localness(vocab_localness, localness_file)
+            return vocab_localness,vocab_vector
+        else:
+            return self.load_localness(localness_file)
+
+    def serialize_tweets_from_db(self):
+        with codecs.open(self.tweet_file, 'w') as fout:
+            for tweet in self.db.get_tweets_from_db():
+                pickle.dump(tweet,fout)
+
+    def deserialize_tweets_from_file(self):
+        # with codecs.open("/Users/keyangzhang/Documents/UIUC/Research/Embedding/embedding/data/la/input/message.txt", 'r') as fin:
+        with codecs.open(self.tweet_file, 'r') as fin:
+            cnt = 0
+            while True:
+                # if cnt==10000:
+                #     return
+                cnt += 1
+                try: 
+                    tweet = pickle.load(fin)
+                    yield tweet
+                except:
+                    return
+
+    def count_tweets_containing_words(self,voca):
+        count = 0
+        for tweet in self.get_tweets_from_db():
+            for word in tweet.words:
+                if word in voca:
+                    count += 1
+                    break
+        return count
+
+    def get_tweets_containing_words(self,voca):
+        tweets = []
+        for tweet in self.get_tweets_from_db():
+            for word in tweet.words:
+                if word in voca:
+                    tweets.append(tweet)
+                    break
+        return tweets
+
+    def print_tweets_sample_containing_word(self,word):
+        count = 0
+        for tweet in self.get_tweets_from_db():
+            if word in tweet.words:
+                print tweet.text
+                count += 1
+            if count==50:
+                return
+
+####################################################################################
+
 if __name__ == '__main__':
-    p = TweetDatabase('tweets.txt', 'dmserv4.cs.illinois.edu', 11111, 'sample', 'raw')
-    for t in p.get_tweets_from_db():
-        print t
-
-
-
-
-# # train w2v model
-# def train(self):
-#     model = gensim.models.Word2Vec(self.checkins, size=200, window=8, min_count = 2, workers=4)
-#     model.save('model.txt')
-#     print model.most_similar(positive=['coffee'])
-#     print model.similarity('coffee', 'bar')
-#     print model.similarity('coffee', 'starbucks')
+    from sklearn.feature_extraction import DictVectorizer
+    from scipy.stats import entropy
+    a = {1:0.5,2:0.5}
+    b = {1:0.4,2:0.6}
+    print entropy(a,b)

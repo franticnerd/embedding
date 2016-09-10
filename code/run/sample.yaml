@@ -12,6 +12,7 @@ file:
     activity: !join [*OUT_DIR, activity.txt]
     nonactivity: !join [*OUT_DIR, nonactivity.txt]
     doc2vec: !join [*OUT_DIR, doc2vec.txt]
+    embed: !join [*OUT_DIR, embed.txt]
 
 mongo:
   dns: dmserv4.cs.illinois.edu

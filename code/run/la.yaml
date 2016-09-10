@@ -6,6 +6,7 @@ file:
   input:
     dir: &IN_DIR !join [*DIR, input/]
     text: !join [*IN_DIR, message.txt]
+    segmented: !join [*IN_DIR, segmented.txt]
   output:
     dir: &OUT_DIR !join [*DIR, output/]
     entropy: !join [*OUT_DIR, entropy.txt]
@@ -13,6 +14,11 @@ file:
     nonactivity: !join [*OUT_DIR, nonactivity.txt]
     doc2vec: !join [*OUT_DIR, doc2vec.txt]
     embed: !join [*OUT_DIR, embed.txt]
+    eval: !join [*OUT_DIR, eval.txt]
+  models: 
+    dir: &MODEL_DIR !join [*DIR, models/]
+  line: 
+    dir: &LINE_DIR ../python/line-package-second/
 
 mongo:
   dns: dmserv4.cs.illinois.edu

@@ -27,7 +27,8 @@ class Tweet:
         self.lat = d['lat']
         self.lng = d['lng']
         self.text = d['text']
-        self.words = d['words']
+        # self.words = d['words']
+        self.words = d['phrases']
 
     # parse the raw tweet message to return a list of words
     def clean_text(self):
