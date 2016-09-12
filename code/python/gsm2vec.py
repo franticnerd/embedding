@@ -12,18 +12,12 @@ from subprocess import call
 from scipy.special import expit
 import math
 
-def normed(x):
-	return x/np.linalg.norm(x, ord=1)
-
-def K(u, h=1):
-	u /= h
-	return ( (math.e**(-u*u/2))/math.sqrt(2*math.pi) ) / h
 
 class Gsm2vecPredictor:
 	def __init__(self, pd):
 		self.pd = pd
-		self.lClus = pd["lClus"](pd["bandwidth_l"])
-		self.tClus = pd["tClus"](pd["bandwidth_t"])
+		self.lClus = pd["lClus"](pd)
+		self.tClus = pd["tClus"](pd)
 		self.nt2vecs = None
 
 	def fit(self, tweets):
@@ -125,11 +119,14 @@ class Gsm2vecPredictor:
 		edges = []
 		i = 0
 		for n1, n2 in itertools.combinations(nodes, r=2):
-			dist = np.linalg.norm(np.array(centers[int(n1)])-np.array(centers[int(n2)]), ord=2)
+			dist = np.linalg.norm(np.array(centers[int(n1)])-np.array(centers[int(n2)]))
 			edges.append((n1, n2, dist))
 		edges.sort(key=lambda tup:tup[2])
 		for n1, n2, dist in edges[:len(nodes)*self.pd["nb_num"]]:
-			proximity = dist**(-0.5)
+			if nt=='l':
+				proximity = self.pd["kernel"](dist, self.pd["bandwidth_l"])
+			else:
+				proximity = self.pd["kernel"](dist, self.pd["bandwidth_t"])
 			et2net[et][n1][n2] = proximity
 			et2net[et][n2][n1] = proximity
 
@@ -138,15 +135,16 @@ class Gsm2vecPredictor:
 		location = [lat, lng]
 		time = [self.pd["convert_ts"](time)]
 
-		l = self.lClus.predict(location)
-		t = self.tClus.predict(time)
-		ls_vec = nt2vecs['l'][l] if l in nt2vecs['l'] else np.zeros(self.pd["dim"])
-		ts_vec = nt2vecs['t'][t] if t in nt2vecs['t'] else np.zeros(self.pd["dim"])
-
-		# l_vecs = [nt2vecs['l'][l]*weight for l, weight in self.lClus.tops(location, self.pd["kernel_candidate_num"]) if l in nt2vecs['l']]
-		# t_vecs = [nt2vecs['t'][t]*weight for t, weight in self.tClus.tops(time, self.pd["kernel_candidate_num"]) if t in nt2vecs['t']]
-		# ls_vec = np.average(l_vecs, axis=0) if l_vecs else np.zeros(self.pd["dim"])
-		# ts_vec = np.average(t_vecs, axis=0) if t_vecs else np.zeros(self.pd["dim"])
+		if not self.pd["kernel_candidate_num"]:
+			l = self.lClus.predict(location)
+			t = self.tClus.predict(time)
+			ls_vec = nt2vecs['l'][l] if l in nt2vecs['l'] else np.zeros(self.pd["dim"])
+			ts_vec = nt2vecs['t'][t] if t in nt2vecs['t'] else np.zeros(self.pd["dim"])
+		else:
+			l_vecs = [nt2vecs['l'][l]*weight for l, weight in self.lClus.tops(location) if l in nt2vecs['l']]
+			t_vecs = [nt2vecs['t'][t]*weight for t, weight in self.tClus.tops(time) if t in nt2vecs['t']]
+			ls_vec = np.average(l_vecs, axis=0) if l_vecs else np.zeros(self.pd["dim"])
+			ts_vec = np.average(t_vecs, axis=0) if t_vecs else np.zeros(self.pd["dim"])
 
 		w_vecs = [nt2vecs['w'][w] for w in words if w in nt2vecs['w']]
 		ws_vec = np.average(w_vecs, axis=0) if w_vecs else np.zeros(self.pd["dim"])
@@ -179,8 +177,19 @@ class Gsm2vecPredictor:
 	def convert_freq_to_pmi(self):
 		pass
 
+
+class LMeanshiftClus(object):
+	def __new__(cls, pd):
+		return MeanshiftClus(pd, pd["bandwidth_l"])
+
+class TMeanshiftClus(object):
+	def __new__(cls, pd):
+		return MeanshiftClus(pd, pd["bandwidth_t"])
+
 class MeanshiftClus:
-	def __init__(self, bandwidth):
+	def __init__(self, pd, bandwidth):
+		self.pd = pd
+		self.bandwidth = bandwidth
 		self.ms = MeanShift(bandwidth=bandwidth, bin_seeding=True, n_jobs=5)
 
 	def fit(self, X):
@@ -194,16 +203,16 @@ class MeanshiftClus:
 	def get_centers(self):
 		return [list(center) for center in self.ms.cluster_centers_]
 
-	def tops(self, x, num=1):
+	def tops(self, x):
 		candidates = []
 		for clus, center in enumerate(self.ms.cluster_centers_):
-			candidates.append( (str(clus), np.linalg.norm(np.array(x)-center, ord=2)) )
+			candidates.append( (str(clus), np.linalg.norm(np.array(x)-center)) )
 		candidates.sort(key=lambda tup:tup[1])
-		return [(candidate[0], candidate[1]**(-0.5)) for candidate in candidates[:num]]
+		return [(candidate[0], self.pd["kernel"](candidate[1], self.bandwidth) ) for candidate in candidates[:self.pd["kernel_candidate_num"]]]
 
 class LGridClus:
-	def __init__(self, grid_num):
-		self.grid_num = grid_num
+	def __init__(self, pd):
+		self.grid_num = pd["grid_num"]
 
 	def fit(self, locations):
 		lats, lngs = zip(*locations)
@@ -228,8 +237,8 @@ class LGridClus:
 			for i in range(self.grid_num) for j in range(self.grid_num)]
 
 class TGridClus:
-	def __init__(self, grid_num):
-		self.grid_num = grid_num
+	def __init__(self, pd):
+		self.grid_num = pd["grid_num"]
 
 	def fit(self, times):
 		self.min, self.max = min([time[0] for time in times]), max([time[0] for time in times])
@@ -246,7 +255,7 @@ class TGridClus:
 		return [[self.min+i*grid_len] for i in range(self.grid_num)]
 
 class TVoidClus:
-	def __init__(self, place_holder):
+	def __init__(self, pd):
 		self.centers = []
 
 	def fit(self, times):
@@ -316,31 +325,30 @@ class Gsm2vec:
 		self.start_time = time.time()
 
 	def fit(self, nt2nodes, et2net):
-		sample_size = int(self.pd["samples"]*1000000)
+		pd = self.pd
+		sample_size = int(pd["samples"]*1000000)
 		# initialization not specified in the paper, got wrong at the beginning
-		self.nt2vecs = {nt:{node:(np.random.rand(self.pd["dim"])-0.5)/self.pd["dim"] for node in nt2nodes[nt]} for nt in self.pd["ntList"]}
-		self.nt2cvecs = {nt:{node:(np.random.rand(self.pd["dim"])-0.5)/self.pd["dim"] for node in nt2nodes[nt]} for nt in self.pd["ntList"]}
-		et2optimizer = {et:self.Optimizer(et2net[et], self.pd, sample_size) for et in et2net}
-		alpha = self.pd["alpha"]
+		self.nt2vecs = {nt:{node:(np.random.rand(pd["dim"])-0.5)/pd["dim"] for node in nt2nodes[nt]} for nt in pd["ntList"]}
+		self.nt2cvecs = {nt:{node:(np.random.rand(pd["dim"])-0.5)/pd["dim"] for node in nt2nodes[nt]} for nt in pd["ntList"]}
+		et2optimizer = {et:self.Optimizer(et2net[et], pd, sample_size) for et in et2net}
+		alpha = pd["alpha"]
 		print 'sample', 'time', 'alpha', et2optimizer.keys()
 		for i in range(sample_size):
-			if i%1000==0 and self.pd["adaptive_lr"]:
-				alpha = self.pd["alpha"] * (1 - float(i) / sample_size)
-				if alpha < self.pd["alpha"]*0.0001:
-					alpha = self.pd["alpha"]*0.0001
+			if i%1000==0 and pd["adaptive_lr"]:
+				alpha = pd["alpha"] * (1 - float(i) / sample_size)
+				if alpha < pd["alpha"]*0.0001:
+					alpha = pd["alpha"]*0.0001
 			if i%100000==0:
 				print i, round(time.time()-self.start_time, 1), round(alpha, 5), [et2optimizer[et].get_objective(self.nt2vecs, et) for et in et2optimizer]
 			for et in et2net:
 				tu, tv = et[0], et[1]
-				vecs_u = self.nt2vecs[tu]
-				if self.pd["second_order"]:
+				vecs_u, vecs_v = self.nt2vecs[tu], self.nt2vecs[tv]
+				if pd["version"]==0 and pd["second_order"] or pd["version"]==1 and tv=='w' or pd["version"]==2 and tu=='w' and tv=='w':
 					vecs_v = self.nt2cvecs[tv]
-				else:
-					vecs_v = self.nt2vecs[tv]
-				et2optimizer[et].sgd_one_step(vecs_u, vecs_v, alpha)
+				et2optimizer[et].sgd_one_step(vecs_u, vecs_v, alpha, i)
 		nt2vecs = dict()
 		for nt in nt2nodes:
-			if nt!=self.pd["predict_type"] and self.pd["second_order"] and self.pd["use_context_vec"]:
+			if pd["version"]==0 and nt!=pd["predict_type"] and pd["second_order"] and pd["use_context_vec"]:
 				nt2vecs[nt] = self.nt2cvecs[nt]
 			else:
 				nt2vecs[nt] = self.nt2vecs[nt]
@@ -362,20 +370,21 @@ class Gsm2vec:
 			self.ns_thresh = ranked_edges[int((len(ranked_edges)-1)*self.pd["ns_refuse_percent"])]
 			self.net = net
 			self.u2samples = {u:iter(np.random.choice( net[u].keys(), 100, 
-								p=normed(net[u].values()) )) for u in net}
-			self.nega_samples = iter(np.random.choice( v2d.keys(), sample_size*self.pd["negative"]*self.pd["ns_candidate_num"], 
-								p=normed(np.power(v2d.values(), 0.75)) ))
+								p=self.normed(net[u].values()) )) for u in net}
+			self.nega_samples = iter(np.random.choice( v2d.keys(), int(sample_size*1.4)*self.pd["negative"]*self.pd["ns_candidate_num"], 
+								p=self.normed(np.power(v2d.values(), 0.75)) ))
 			self.samples = iter(np.random.choice( u2d.keys(), sample_size, 
-								p=normed(u2d.values()) ))
+								p=self.normed(u2d.values()) ))
 		
-		def sgd_one_step(self, vecs_u, vecs_v, alpha):
+		def sgd_one_step(self, vecs_u, vecs_v, alpha, smp_num):
 			u = self.samples.next()
 			try:
 				v = self.u2samples[u].next()
 			except StopIteration:
 				self.u2samples[u] = iter(np.random.choice(self.net[u].keys(), 100, 
-										p=normed(self.net[u].values()) ))
+										p=self.normed(self.net[u].values()) ))
 				v = self.u2samples[u].next()
+			error_vec = np.zeros(self.pd["dim"])
 			for j in range(self.pd["negative"]+1):
 				if j==0:
 					target = v
@@ -383,26 +392,34 @@ class Gsm2vec:
 					f = np.dot(vecs_u[u], vecs_v[target])
 				else:
 					target, f = None, float('-inf')
-					for i in range(self.pd["ns_candidate_num"]):
-						target_candidate = self.nega_samples.next()
-						if not (target_candidate in self.net[u] and self.net[u][target_candidate]>self.ns_thresh):
-							f_candidate = np.dot(vecs_u[u], vecs_v[target_candidate])
-							if f_candidate>f:
-								target, f = target_candidate, f_candidate
-					if not target: continue
+					while not target:
+						for i in range(self.pd["ns_candidate_num"]):
+							target_candidate = self.nega_samples.next()
+							if not (target_candidate in self.net[u] and self.net[u][target_candidate]>self.ns_thresh):
+								f_candidate = np.dot(vecs_u[u], vecs_v[target_candidate])
+								if f_candidate>f:
+									target, f = target_candidate, f_candidate
 					label = 0
 				g = (label - expit(f)) * alpha
-				vecs_u[u] += g*vecs_v[target]
+				error_vec += g*vecs_v[target]
 				vecs_v[target] += g*vecs_u[u]
+			vecs_u[u] += error_vec
 	
 		def get_objective(self, nt2vecs, et):
 			objective = 0
 			vecs_u, vecs_v = nt2vecs[et[0]], nt2vecs[et[1]]
 			for u in self.net:
 				for v in self.net[u]:
-					f = np.dot(vecs_u[u], vecs_v[v])
-					objective += self.net[u][v]*math.log(expit(f))
+					try:
+						f = np.dot(vecs_u[u], vecs_v[v])
+						objective += self.net[u][v]*math.log(expit(f))
+					except ValueError:
+						print u,v,vecs_u[u],vecs_v[v],f,expit(f)
+						exit(0)
 			return -round(objective, 2)
+
+		def normed(self, x):
+			return x/np.linalg.norm(x, ord=1)
 
 
 class Gsm2vec_relation:

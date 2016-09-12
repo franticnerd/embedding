@@ -9,13 +9,13 @@ import gsm2vec
 import os
 import folium
 
-pd = dict(paras.pd)
+io = IO()
 
 class QuantitativeEval:
 	def __init__(self,predictor):
 		self.predictor = predictor
 
-	def computeMRR(self,tweets):
+	def computeMRR(self,tweets,pd):
 		start_time = time.time()
 		predictType = pd["predict_type"]
 		fake_num=pd["fake_num"]
@@ -62,6 +62,8 @@ class QuantitativeEval:
 		evalFile.write(paras.pd2string(pd))
 		evalFile.write("node nums: "+str({nt:len(self.predictor.nt2vecs[nt]) for nt in pd["ntList"]})+"\n")
 		evalFile.write("mrr,mr: "+str((mrr,mr))+"\n\n")
+		print mrr, mr
+		return mr
 
 
 class QualitativeEval:
@@ -73,7 +75,6 @@ class QualitativeEval:
 			os.mkdir(directory)
 		print ws
 		print ts
-		open(directory+"paras.txt",'w').write(paras.pd2string(pd))
 		open(directory+"words.txt",'w').write(str(ws)+"\n")
 		open(directory+"times.txt",'w').write(str(ts)+"\n")
 		map_osm = None
@@ -100,7 +101,7 @@ class QualitativeEval:
 		directory = io.output_dir+"case_study/"+str(query1)+"-"+str(query2)+"/"
 		self.printAndScribe(directory,ws,ts,ls)
 
-def train(tweets):
+def train(tweets,pd):
 	start_time = time.time()
 	predictor = Gsm2vecPredictor(pd)
 	predictor.fit(tweets[:trainSize])
@@ -109,8 +110,11 @@ def train(tweets):
 	evalFile.write("time for training: "+str(time.time()-start_time)+"\n")
 	return predictor
 
-if __name__ == '__main__':
-	io = IO()
+def main(job_id, params):
+	print 'Anything printed here will end up in the output directory for job #:', str(job_id)
+	print params
+
+	pd = dict(paras.pd)
 
 	rand_seed = pd["rand_seed"]
 	np.random.seed(rand_seed)
@@ -119,8 +123,26 @@ if __name__ == '__main__':
 	trainSize = int(len(tweets)*pd["train_ratio"])
 	# random.shuffle(tweets)
 
-	predictor = train(tweets[:trainSize])
-	QuantitativeEval(predictor).computeMRR(tweets[trainSize:])
+	for para in ['alpha', 'negative']:
+		pd[para] = params[para]
+
+	predictor = train(tweets[:trainSize],pd)
+	mr = QuantitativeEval(predictor).computeMRR(tweets[trainSize:],pd)
+	return mr
+
+
+if __name__ == '__main__':
+	pd = dict(paras.pd)
+
+	rand_seed = pd["rand_seed"]
+	np.random.seed(rand_seed)
+	random.seed(rand_seed)
+	tweets = pickle.load(open(io.models_dir+'act_tweets_'+str(pd["data_size"])+'.model','r'))
+	trainSize = int(len(tweets)*pd["train_ratio"])
+	# random.shuffle(tweets)
+
+	predictor = train(tweets[:trainSize],pd)
+	QuantitativeEval(predictor).computeMRR(tweets[trainSize:],pd)
 	
 	# predictor = pickle.load(open(io.models_dir+'gsm2vecPredictor.model','r'))
 	# QualitativeEval(predictor).getNbs1('dodger')
@@ -129,47 +151,48 @@ if __name__ == '__main__':
 	# for negative in [0,1,2,5,10,20]:
 	# 	pd = dict(paras.pd)
 	# 	pd['negative'] = negative
-	# 	predictor = train(tweets[:trainSize])
-	# 	QuantitativeEval(predictor).computeMRR(tweets[trainSize:])
+	# 	predictor = train(tweets[:trainSize], pd)
+	# 	QuantitativeEval(predictor).computeMRR(tweets[trainSize:], pd)
 	# for alpha in [0.01, 0.025, 0.05, 0.1, 0.2]:
 	# 	pd = dict(paras.pd)
 	# 	pd['alpha'] = alpha
-	# 	predictor = train(tweets[:trainSize])
-	# 	QuantitativeEval(predictor).computeMRR(tweets[trainSize:])
+	# 	predictor = train(tweets[:trainSize], pd)
+	# 	QuantitativeEval(predictor).computeMRR(tweets[trainSize:], pd)
 	# for samples in [1,5,10,25,50,100]:
 	# 	pd = dict(paras.pd)
 	# 	pd['samples'] = samples
-	# 	predictor = train(tweets[:trainSize])
-	# 	QuantitativeEval(predictor).computeMRR(tweets[trainSize:])
+	# 	predictor = train(tweets[:trainSize], pd)
+	# 	QuantitativeEval(predictor).computeMRR(tweets[trainSize:], pd)
 
 	# for predict_type in ['w','l','t']:
-	# 	for bandwidth_l in [0.1,0.03,0.01,0.003]:
+	# 	for bandwidth_l in [0.01,0.003,0.001]:
 	# 		pd = dict(paras.pd)
 	# 		pd['bandwidth_l'] = bandwidth_l
 	# 		pd["predict_type"] = predict_type
-	# 		predictor = train(tweets[:trainSize])
-	# 		QuantitativeEval(predictor).computeMRR(tweets[trainSize:])
-	# 	for bandwidth_t in [10000,3000,1000,300]:
+	# 		predictor = train(tweets[:trainSize], pd)
+	# 		QuantitativeEval(predictor).computeMRR(tweets[trainSize:], pd)
+	# 	for bandwidth_t in [1000,300,100]:
 	# 		pd = dict(paras.pd)
 	# 		pd['bandwidth_t'] = bandwidth_t
 	# 		pd["predict_type"] = predict_type
-	# 		predictor = train(tweets[:trainSize])
-	# 		QuantitativeEval(predictor).computeMRR(tweets[trainSize:])
+	# 		predictor = train(tweets[:trainSize], pd)
+	# 		QuantitativeEval(predictor).computeMRR(tweets[trainSize:], pd)
 
 	# for predict_type in ['w','l','t']:
 	# 	pd = dict(paras.pd)
 	# 	pd["predict_type"] = predict_type
-	# 	predictor = train(tweets[:trainSize])
-	# 	QuantitativeEval(predictor).computeMRR(tweets[trainSize:])
+	# 	predictor = train(tweets[:trainSize], pd)
+	# 	QuantitativeEval(predictor).computeMRR(tweets[trainSize:], pd)
 
-	# for nb_num in [3,10,30,100]:
-	# 	pd = dict(paras.pd)
-	# 	pd['nb_num'] = nb_num
-	# 	predictor = train(tweets[:trainSize])
-	# 	QuantitativeEval(predictor).computeMRR(tweets[trainSize:])
 	# for grid_num in [50]:
 	# 	pd = dict(paras.pd)
 	# 	pd['grid_num'] = grid_num
-	# 	predictor = train(tweets[:trainSize])
-	# 	QuantitativeEval(predictor).computeMRR(tweets[trainSize:])
+	# 	predictor = train(tweets[:trainSize], pd)
+	# 	QuantitativeEval(predictor).computeMRR(tweets[trainSize:], pd)
+
+	# for version in [0, 1, 2]:
+	# 	pd = dict(paras.pd)
+	# 	pd['version'] = version
+	# 	predictor = train(tweets[:trainSize], pd)
+	# 	QuantitativeEval(predictor).computeMRR(tweets[trainSize:], pd)
 
