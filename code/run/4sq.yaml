@@ -1,0 +1,32 @@
+file:
+  dir: &DIR ../../data/foursquare/
+  raw:
+    dir: &RAW_DIR !join [*DIR, raw/]
+    tweets: !join [*RAW_DIR, tweets.txt]
+  input:
+    dir: &IN_DIR !join [*DIR, input/]
+    text: !join [*IN_DIR, message.txt]
+    segmented: !join [*IN_DIR, segmented.txt]
+  output:
+    dir: &OUT_DIR !join [*DIR, output/]
+    entropy: !join [*OUT_DIR, entropy.txt]
+    activity: !join [*OUT_DIR, activity.txt]
+    nonactivity: !join [*OUT_DIR, nonactivity.txt]
+    doc2vec: !join [*OUT_DIR, doc2vec.txt]
+    embed: !join [*OUT_DIR, embed.txt]
+    eval: !join [*OUT_DIR, eval.txt]
+  models:
+    dir: &MODEL_DIR !join [*DIR, models/]
+  line:
+    dir: &LINE_DIR ../python/line-package-second/
+
+mongo:
+  dns: dmserv4.cs.illinois.edu
+  port: 11111
+  db: foursquare
+  tweet: tweets
+  index: inverted-index
+  exp: embedding-exp
+
+# partition granularity
+grid: [50, 50, 100]
