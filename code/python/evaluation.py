@@ -60,7 +60,7 @@ class QuantitativeEval:
 		evalFile.write("time for testing: "+str(time.time()-start_time)+"\n")
 		evalFile.write(str(datetime.datetime.now())+"\n")
 		evalFile.write(paras.pd2string(pd))
-		evalFile.write("node nums: "+str({nt:len(self.predictor.nt2vecs[nt]) for nt in pd["ntList"]})+"\n")
+		evalFile.write("node nums: "+str({nt:len(self.predictor.nt2nodes[nt]) for nt in pd["ntList"]})+"\n")
 		evalFile.write("mrr,mr: "+str((mrr,mr))+"\n\n")
 		print mrr, mr
 		return mr
@@ -103,9 +103,9 @@ class QualitativeEval:
 
 def train(tweets,pd):
 	start_time = time.time()
-	predictor = Gsm2vecPredictor(pd)
+	predictor = pd["predictor"](pd)
 	predictor.fit(tweets)
-	pickle.dump(predictor,open(io.models_dir+'gsm2vecPredictor.model','w'))
+	# pickle.dump(predictor,open(io.models_dir+'gsm2vecPredictor.model','w'))
 	evalFile = open(io.eval_file,'a')
 	evalFile.write("time for training: "+str(time.time()-start_time)+"\n")
 	return predictor
@@ -140,10 +140,10 @@ if __name__ == '__main__':
 	random.seed(rand_seed)
 	tweets = pickle.load(open(io.models_dir+'act_tweets_'+str(pd["data_size"])+'.model','r'))
 	trainSize = int(len(tweets)*pd["train_ratio"])
-	# # random.shuffle(tweets)
+	random.shuffle(tweets)
 
-	predictor = train(tweets[:trainSize],pd)
-	QuantitativeEval(predictor).computeMRR(tweets[trainSize:],pd)
+	# predictor = train(tweets[:trainSize],pd)
+	# QuantitativeEval(predictor).computeMRR(tweets[trainSize:],pd)
 	
 	# predictor = pickle.load(open(io.models_dir+'gsm2vecPredictor.model','r'))
 	# QualitativeEval(predictor).getNbs1('dodger')
@@ -165,19 +165,20 @@ if __name__ == '__main__':
 	# 	predictor = train(tweets[:trainSize], pd)
 	# 	QuantitativeEval(predictor).computeMRR(tweets[trainSize:], pd)
 
-	# for predict_type in ['w','l','t']:
-	# 	for bandwidth_l in [0.01,0.003,0.001]:
-	# 		pd = dict(paras.pd)
-	# 		pd['bandwidth_l'] = bandwidth_l
-	# 		pd["predict_type"] = predict_type
-	# 		predictor = train(tweets[:trainSize], pd)
-	# 		QuantitativeEval(predictor).computeMRR(tweets[trainSize:], pd)
-	# 	for bandwidth_t in [1000,300,100]:
-	# 		pd = dict(paras.pd)
-	# 		pd['bandwidth_t'] = bandwidth_t
-	# 		pd["predict_type"] = predict_type
-	# 		predictor = train(tweets[:trainSize], pd)
-	# 		QuantitativeEval(predictor).computeMRR(tweets[trainSize:], pd)
+	for predict_type in ['w','l','t']:
+		for bandwidth_l in [0.003,0.001]:
+		# for bandwidth_l in [0.03,0.01,0.005]:
+			pd = dict(paras.pd)
+			pd['bandwidth_l'] = bandwidth_l
+			pd["predict_type"] = predict_type
+			predictor = train(tweets[:trainSize], pd)
+			QuantitativeEval(predictor).computeMRR(tweets[trainSize:], pd)
+		# for bandwidth_t in [3000,1000,500]:
+		# 	pd = dict(paras.pd)
+		# 	pd['bandwidth_t'] = bandwidth_t
+		# 	pd["predict_type"] = predict_type
+		# 	predictor = train(tweets[:trainSize], pd)
+		# 	QuantitativeEval(predictor).computeMRR(tweets[trainSize:], pd)
 
 	# for predict_type in ['w','l','t']:
 	# 	pd = dict(paras.pd)

@@ -13,6 +13,69 @@ from scipy.special import expit
 import math
 
 
+class PmiPredictor:
+	def __init__(self, pd):
+		self.pd = pd
+		self.lClus = pd["lClus"](pd)
+		self.tClus = pd["tClus"](pd)
+		self.nt2nodes = None
+		self.et2net = None
+
+	def fit(self, tweets):
+		self.nt2nodes, self.et2net = self.prepare_training_data(tweets)
+
+	def prepare_training_data(self, tweets):
+		nt2nodes = {nt:defaultdict(float) for nt in self.pd["ntList"]}
+		all_et = [nt1+nt2 for nt1, nt2 in itertools.product(self.pd["ntList"], repeat=2)]
+		et2net = {et:defaultdict(lambda : defaultdict(float)) for et in all_et}
+		texts = [tweet.words for tweet in tweets]
+		locations = [[tweet.lat, tweet.lng] for tweet in tweets]
+		times  = [[self.pd["convert_ts"](tweet.ts)] for tweet in tweets]
+		ls = self.lClus.fit(locations)
+		ts = self.tClus.fit(times)
+
+		# load voca
+		word_localness = pickle.load(open(IO().models_dir+'word_localness.model', 'r'))
+		voca = set(zip(*word_localness)[0])
+		voca.remove("")
+
+		for location, time, text, l, t in zip(locations, times, texts, ls, ts):
+			nt2nodes['l'][l] += 1
+			nt2nodes['t'][t] += 1
+			et2net['lt'][l][t] += 1
+			et2net['tl'][t][l] += 1
+			words = [w for w in text if w in voca] # from text, only retain those words appearing in voca
+			for w in words:
+				nt2nodes['w'][w] += 1
+				et2net['tw'][t][w] += 1
+				et2net['wt'][w][t] += 1
+				et2net['wl'][w][l] += 1
+				et2net['lw'][l][w] += 1
+		for et in et2net:
+			net = et2net[et]
+			for u in net:
+				for v in net[u]:
+					net[u][v] /= (nt2nodes[et[0]][u]*nt2nodes[et[1]][v])
+		return nt2nodes, et2net
+
+	def predict(self, time, lat, lng, words):
+		nt2nodes, et2net = self.nt2nodes, self.et2net
+		location = [lat, lng]
+		time = [self.pd["convert_ts"](time)]
+		l = self.lClus.predict(location)
+		t = self.tClus.predict(time)
+		wl = [ et2net['wl'][w][l] for w in words if w in et2net['wl'] and l in et2net['wl'][w] ]
+		wt = [ et2net['wt'][w][t] for w in words if w in et2net['wt'] and l in et2net['wl'][w] ]
+		wl_score = sum(wl)/len(wl) if wl else 0
+		wt_score = sum(wt)/len(wt) if wt else 0
+		# wl_score = sum(wl) if wl else 0
+		# wt_score = sum(wt) if wt else 0
+		lt_score = et2net['lt'][l][t] if l in et2net['lt'] and t in et2net['lt'][l] else 0
+		score = wl_score+wt_score+lt_score
+		return round(score, 6)
+
+
+
 class Gsm2vecPredictor:
 	def __init__(self, pd):
 		self.pd = pd
@@ -28,6 +91,7 @@ class Gsm2vecPredictor:
 		else:
 			nt2nodes, et2net = self.prepare_training_data(tweets)
 			self.nt2vecs = gsm2vec.fit(nt2nodes, et2net)
+		self.nt2nodes = nt2nodes
 
 	def prepare_training_data_for_Gsm2vec_relation(self, tweets):
 		nt2nodes = {nt:set() for nt in self.pd["ntList"]}
@@ -65,6 +129,7 @@ class Gsm2vecPredictor:
 
 	def prepare_training_data(self, tweets):
 		nt2nodes = {nt:set() for nt in self.pd["ntList"]}
+		nt2node2degree = {nt:defaultdict(float) for nt in self.pd["ntList"]}
 		all_et = [nt1+nt2 for nt1, nt2 in itertools.product(self.pd["ntList"], repeat=2)]
 		et2net = {et:defaultdict(lambda : defaultdict(float)) for et in all_et}
 		texts = [tweet.words for tweet in tweets]
@@ -80,7 +145,9 @@ class Gsm2vecPredictor:
 
 		for location, time, text, l, t in zip(locations, times, texts, ls, ts):
 			nt2nodes['l'].add(l)
+			nt2node2degree['l'][l] += 1
 			nt2nodes['t'].add(t)
+			nt2node2degree['t'][t] += 1
 			et2net['lt'][l][t] += 1
 			et2net['tl'][t][l] += 1
 			# topl_weights = self.lClus.tops(location, self.pd["kernel_candidate_num"])
@@ -92,6 +159,7 @@ class Gsm2vecPredictor:
 			words = [w for w in text if w in voca] # from text, only retain those words appearing in voca
 			for w in words:
 				nt2nodes['w'].add(w)
+				nt2node2degree['w'][w] += 1
 				et2net['tw'][t][w] += 1
 				et2net['wt'][w][t] += 1
 				et2net['wl'][w][l] += 1
@@ -110,6 +178,11 @@ class Gsm2vecPredictor:
 		self.encode_continuous_proximity("tt", self.tClus, et2net, nt2nodes)
 		print "encoded_continuous_proximity"
 
+		for et in et2net:
+			net = et2net[et]
+			for u in net:
+				for v in net[u]:
+					net[u][v] /= (nt2node2degree[et[1]][v])
 		return nt2nodes, {et:et2net[et] for et in self.pd["etList"]}
 
 	def encode_continuous_proximity(self, et, clus, et2net, nt2nodes):
@@ -129,6 +202,31 @@ class Gsm2vecPredictor:
 				proximity = self.pd["kernel"](dist, self.pd["bandwidth_t"])
 			et2net[et][n1][n2] = proximity
 			et2net[et][n2][n1] = proximity
+
+	def gen_spatial_feature(lat, lng):
+		location = [lat, lng]
+		if not self.pd["kernel_candidate_num"]:
+			l = self.lClus.predict(location)
+			ls_vec = nt2vecs['l'][l] if l in nt2vecs['l'] else np.zeros(self.pd["dim"])
+		else:
+			l_vecs = [nt2vecs['l'][l]*weight for l, weight in self.lClus.tops(location) if l in nt2vecs['l']]
+			ls_vec = np.average(l_vecs, axis=0) if l_vecs else np.zeros(self.pd["dim"])
+		return ls_vec
+
+	def gen_temporal_feature(time):
+		time = [self.pd["convert_ts"](time)]
+		if not self.pd["kernel_candidate_num"]:
+			t = self.tClus.predict(time)
+			ts_vec = nt2vecs['t'][t] if t in nt2vecs['t'] else np.zeros(self.pd["dim"])
+		else:
+			t_vecs = [nt2vecs['t'][t]*weight for t, weight in self.tClus.tops(time) if t in nt2vecs['t']]
+			ts_vec = np.average(t_vecs, axis=0) if t_vecs else np.zeros(self.pd["dim"])
+		return ts_vec
+
+	def gen_textual_feature(time):
+		w_vecs = [nt2vecs['w'][w] for w in words if w in nt2vecs['w']]
+		ws_vec = np.average(w_vecs, axis=0) if w_vecs else np.zeros(self.pd["dim"])
+		return ws_vec
 
 	def predict(self, time, lat, lng, words):
 		nt2vecs = self.nt2vecs
@@ -173,9 +271,6 @@ class Gsm2vecPredictor:
 			for nb, vec_nb in self.gsm2vec.nt2vecs[nb_nt].items()]
 		candidates.sort(key=lambda tup:tup[1], reverse=True)
 		return candidates[:neighbor_num]
-
-	def convert_freq_to_pmi(self):
-		pass
 
 
 class LMeanshiftClus(object):

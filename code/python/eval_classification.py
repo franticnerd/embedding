@@ -5,6 +5,8 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
 import numpy as np
 import sys
+import paras
+import cPickle as pickle
 
 
 def load_train_test(io):
@@ -37,15 +39,9 @@ def format_data_set(tweets, embedding_mode, label_map):
 
 
 def gen_feature(tweet, embedding_model):
-    def gen_spatial_feature(lat, lng):
-        return np.random.rand(100)
-    def gen_temporal_feature(ts):
-        return np.random.rand(100)
-    def gen_textual_feature(words):
-        return np.random.rand(100)
-    spatial_feature = gen_spatial_feature(tweet.lat, tweet.lng)
-    temporal_feature = gen_temporal_feature(tweet.ts)
-    textual_feature = gen_textual_feature(tweet.words)
+    spatial_feature = embedding_model.gen_spatial_feature(tweet.lat, tweet.lng)
+    temporal_feature = embedding_model.gen_temporal_feature(tweet.ts)
+    textual_feature = embedding_model.gen_textual_feature(tweet.words)
     return np.concatenate([spatial_feature, temporal_feature, textual_feature])
 
 
@@ -61,8 +57,9 @@ def eval(model, features, labels):
     return accuracy_score(expected, predicted)
 
 
-def main(io, embedding_model):
+def main(io):
     train_tweets, test_tweets = load_train_test(io)
+    embedding_model = pickle.load(open(io.models_dir+'gsm2vecPredictor.model','r'))
     label_map = gen_label_mapping(train_tweets, test_tweets)
     print label_map
     f_train, l_train = format_data_set(train_tweets, embedding_model, label_map)
@@ -73,6 +70,7 @@ def main(io, embedding_model):
 
 
 if __name__ == '__main__':
-    para_file = sys.argv[1]
-    io = IO(para_file)
-    main(io, None)
+    pd = dict(paras.pd)
+    # para_file = sys.argv[1]
+    io = IO("../run/4sq.yaml")
+    print main(io)

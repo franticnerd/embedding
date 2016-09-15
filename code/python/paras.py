@@ -40,6 +40,8 @@ pd["second_order"] = 0
 pd["use_context_vec"] = 1
 pd["version"] = 0
 
+# pd["predictor"] = Gsm2vecPredictor
+pd["predictor"] = PmiPredictor
 pd["gsm2vec"] = Gsm2vec_line
 # pd["gsm2vec"] = Gsm2vec
 # pd["gsm2vec"] = Gsm2vec_relation
@@ -60,7 +62,7 @@ def pd2string(pd):
 	s = ""
 	s += ", ".join([para+": "+str(pd[para]) for para in ["train_ratio","data_size","fake_num","predict_type","rand_seed"]])+"\n"
 	s += ", ".join([para+": "+str(pd[para]) for para in ["ntList","etList","second_order","use_context_vec","version"]])+"\n"
-	s += ", ".join([para+": "+str(pd[para]) for para in ["gsm2vec","lClus","tClus"]])+"\n"
+	s += ", ".join([para+": "+str(pd[para]) for para in ["predictor","gsm2vec","lClus","tClus"]])+"\n"
 	s += ", ".join([para+": "+str(pd[para]) for para in ["dim","negative","alpha","samples","threads","adaptive_lr","ns_refuse_percent","ns_candidate_num"]])+"\n"
 	s += ", ".join([para+": "+str(pd[para]) for para in ["kernel_candidate_num","bandwidth_l","bandwidth_t","nb_num","grid_num"]])+"\n"
 	return s
