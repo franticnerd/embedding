@@ -142,8 +142,8 @@ if __name__ == '__main__':
 	trainSize = int(len(tweets)*pd["train_ratio"])
 	random.shuffle(tweets)
 
-	# predictor = train(tweets[:trainSize],pd)
-	# QuantitativeEval(predictor).computeMRR(tweets[trainSize:],pd)
+	predictor = train(tweets[:trainSize],pd)
+	QuantitativeEval(predictor).computeMRR(tweets[trainSize:],pd)
 	
 	# predictor = pickle.load(open(io.models_dir+'gsm2vecPredictor.model','r'))
 	# QualitativeEval(predictor).getNbs1('dodger')
@@ -165,14 +165,13 @@ if __name__ == '__main__':
 	# 	predictor = train(tweets[:trainSize], pd)
 	# 	QuantitativeEval(predictor).computeMRR(tweets[trainSize:], pd)
 
-	for predict_type in ['w','l','t']:
-		for bandwidth_l in [0.003,0.001]:
+	# for predict_type in ['w','l','t']:
 		# for bandwidth_l in [0.03,0.01,0.005]:
-			pd = dict(paras.pd)
-			pd['bandwidth_l'] = bandwidth_l
-			pd["predict_type"] = predict_type
-			predictor = train(tweets[:trainSize], pd)
-			QuantitativeEval(predictor).computeMRR(tweets[trainSize:], pd)
+			# pd = dict(paras.pd)
+			# pd['bandwidth_l'] = bandwidth_l
+			# pd["predict_type"] = predict_type
+			# predictor = train(tweets[:trainSize], pd)
+			# QuantitativeEval(predictor).computeMRR(tweets[trainSize:], pd)
 		# for bandwidth_t in [3000,1000,500]:
 		# 	pd = dict(paras.pd)
 		# 	pd['bandwidth_t'] = bandwidth_t

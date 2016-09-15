@@ -26,8 +26,7 @@ class PmiPredictor:
 
 	def prepare_training_data(self, tweets):
 		nt2nodes = {nt:defaultdict(float) for nt in self.pd["ntList"]}
-		all_et = [nt1+nt2 for nt1, nt2 in itertools.product(self.pd["ntList"], repeat=2)]
-		et2net = {et:defaultdict(lambda : defaultdict(float)) for et in all_et}
+		et2net = {et:defaultdict(lambda : defaultdict(float)) for et in ['lt','lw','tw']}
 		texts = [tweet.words for tweet in tweets]
 		locations = [[tweet.lat, tweet.lng] for tweet in tweets]
 		times  = [[self.pd["convert_ts"](tweet.ts)] for tweet in tweets]
@@ -43,19 +42,75 @@ class PmiPredictor:
 			nt2nodes['l'][l] += 1
 			nt2nodes['t'][t] += 1
 			et2net['lt'][l][t] += 1
-			et2net['tl'][t][l] += 1
 			words = [w for w in text if w in voca] # from text, only retain those words appearing in voca
 			for w in words:
 				nt2nodes['w'][w] += 1
 				et2net['tw'][t][w] += 1
-				et2net['wt'][w][t] += 1
-				et2net['wl'][w][l] += 1
 				et2net['lw'][l][w] += 1
 		for et in et2net:
 			net = et2net[et]
 			for u in net:
 				for v in net[u]:
 					net[u][v] /= (nt2nodes[et[0]][u]*nt2nodes[et[1]][v])
+		return nt2nodes, et2net
+
+	def predict(self, time, lat, lng, words):
+		nt2nodes, et2net = self.nt2nodes, self.et2net
+		location = [lat, lng]
+		time = [self.pd["convert_ts"](time)]
+		l = self.lClus.predict(location)
+		t = self.tClus.predict(time)
+		lw = [ et2net['lw'][l][w] for w in words if l in et2net['lw'] and w in et2net['lw'][l] ]
+		tw = [ et2net['tw'][t][w] for w in words if t in et2net['tw'] and w in et2net['tw'][t] ]
+		lw_score = sum(lw)/len(lw) if lw else 0
+		tw_score = sum(tw)/len(tw) if tw else 0
+		# lw_score = sum(lw) if lw else 0
+		# tw_score = sum(tw) if tw else 0
+		lt_score = et2net['lt'][l][t] if l in et2net['lt'] and t in et2net['lt'][l] else 0
+		score = lw_score+tw_score+lt_score
+		return round(score, 6)
+
+
+class SvdPredictor:
+	def __init__(self, pd):
+		self.pd = pd
+		self.lClus = pd["lClus"](pd)
+		self.tClus = pd["tClus"](pd)
+		self.nt2nodes = None
+		self.et2net = None
+
+	def fit(self, tweets):
+		self.nt2nodes, self.et2net = self.prepare_training_data(tweets)
+
+	def prepare_training_data(self, tweets):
+		nt2nodes = {nt:defaultdict(float) for nt in self.pd["ntList"]}
+		maxDim = max(len(self.lClus.get_centers()), len(self.tClus.get_centers()))
+		et2net = {et:[defaultdict(float) for _ in range(maxDim)] for et in ['lt','lw','tw']}
+		texts = [tweet.words for tweet in tweets]
+		locations = [[tweet.lat, tweet.lng] for tweet in tweets]
+		times  = [[self.pd["convert_ts"](tweet.ts)] for tweet in tweets]
+		ls = self.lClus.fit(locations)
+		ts = self.tClus.fit(times)
+
+		# load voca
+		word_localness = pickle.load(open(IO().models_dir+'word_localness.model', 'r'))
+		voca = set(zip(*word_localness)[0])
+		voca.remove("")
+
+		for location, time, text, l, t in zip(locations, times, texts, ls, ts):
+			nt2nodes['l'][l] += 1
+			nt2nodes['t'][t] += 1
+			et2net['lt'][l][t] += 1
+			words = [w for w in text if w in voca] # from text, only retain those words appearing in voca
+			for w in words:
+				nt2nodes['w'][w] += 1
+				et2net['tw'][t][w] += 1
+				et2net['lw'][l][w] += 1
+
+		for et in ['lt','lw','tw']:
+			vec = DictVectorizer()
+			vec.fit_transform(measurements)
+
 		return nt2nodes, et2net
 
 	def predict(self, time, lat, lng, words):
@@ -73,7 +128,6 @@ class PmiPredictor:
 		lt_score = et2net['lt'][l][t] if l in et2net['lt'] and t in et2net['lt'][l] else 0
 		score = wl_score+wt_score+lt_score
 		return round(score, 6)
-
 
 
 class Gsm2vecPredictor:
