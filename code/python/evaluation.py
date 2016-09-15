@@ -104,7 +104,7 @@ class QualitativeEval:
 def train(tweets,pd):
 	start_time = time.time()
 	predictor = Gsm2vecPredictor(pd)
-	predictor.fit(tweets[:trainSize])
+	predictor.fit(tweets)
 	pickle.dump(predictor,open(io.models_dir+'gsm2vecPredictor.model','w'))
 	evalFile = open(io.eval_file,'a')
 	evalFile.write("time for training: "+str(time.time()-start_time)+"\n")
@@ -124,10 +124,11 @@ def main(job_id, params):
 	# random.shuffle(tweets)
 
 	for para in ['alpha', 'negative']:
-		pd[para] = params[para]
+		pd[para] = params[para][0]
 
 	predictor = train(tweets[:trainSize],pd)
 	mr = QuantitativeEval(predictor).computeMRR(tweets[trainSize:],pd)
+	print "mr:", mr
 	return mr
 
 
@@ -139,7 +140,7 @@ if __name__ == '__main__':
 	random.seed(rand_seed)
 	tweets = pickle.load(open(io.models_dir+'act_tweets_'+str(pd["data_size"])+'.model','r'))
 	trainSize = int(len(tweets)*pd["train_ratio"])
-	# random.shuffle(tweets)
+	# # random.shuffle(tweets)
 
 	predictor = train(tweets[:trainSize],pd)
 	QuantitativeEval(predictor).computeMRR(tweets[trainSize:],pd)

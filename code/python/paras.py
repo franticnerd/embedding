@@ -24,7 +24,7 @@ pd["ns_refuse_percent"] = 0
 pd["ns_candidate_num"] = 1
 
 pd["train_ratio"] = 0.98
-pd["data_size"] = 10000
+pd["data_size"] = 100000
 pd["fake_num"] = 10
 pd["predict_type"] = 'w'
 pd["rand_seed"] = 2
@@ -48,7 +48,7 @@ pd["lClus"] = LMeanshiftClus
 pd["tClus"] = TMeanshiftClus
 
 pd["kernel_candidate_num"] = 0
-pd["bandwidth_l"] = 0.001
+pd["bandwidth_l"] = 0.01
 pd["bandwidth_t"] = 1000
 pd["nb_num"] = 20
 pd["grid_num"] = 20

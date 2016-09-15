@@ -345,7 +345,7 @@ class Gsm2vec:
 				vecs_u, vecs_v = self.nt2vecs[tu], self.nt2vecs[tv]
 				if pd["version"]==0 and pd["second_order"] or pd["version"]==1 and tv=='w' or pd["version"]==2 and tu=='w' and tv=='w':
 					vecs_v = self.nt2cvecs[tv]
-				et2optimizer[et].sgd_one_step(vecs_u, vecs_v, alpha, i)
+				et2optimizer[et].sgd_one_step(vecs_u, vecs_v, alpha)
 		nt2vecs = dict()
 		for nt in nt2nodes:
 			if pd["version"]==0 and nt!=pd["predict_type"] and pd["second_order"] and pd["use_context_vec"]:
@@ -376,7 +376,7 @@ class Gsm2vec:
 			self.samples = iter(np.random.choice( u2d.keys(), sample_size, 
 								p=self.normed(u2d.values()) ))
 		
-		def sgd_one_step(self, vecs_u, vecs_v, alpha, smp_num):
+		def sgd_one_step(self, vecs_u, vecs_v, alpha):
 			u = self.samples.next()
 			try:
 				v = self.u2samples[u].next()
