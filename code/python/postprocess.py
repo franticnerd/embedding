@@ -14,9 +14,13 @@ class Postprocess:
 
 
     def query_embed_results(self):
-        self.load_tweet_text()
-        self.load_embed_vectors()
+        # self.load_tweet_text()
+        self.embed_vectors = []
+        for embed_file in self.io.embed_files:
+            embed_dict = self.load_embed_vectors()
+            self.embed_vectors.append(embed_dict)
         self.query()
+
 
     def load_tweet_text(self):
         self.tweet_text_dict = {}
@@ -29,33 +33,34 @@ class Postprocess:
                 # if len(self.tweet_text_dict) > 10:
                 #     break
 
-    def load_embed_vectors(self):
-        self.embed_dict = {}
-        with open(self.io.embed_file, 'r') as fin:
+    def load_embed_vectors(self, embed_file):
+        embed_dict = {}
+        with open(embed_file, 'r') as fin:
             for line in fin:
                 items = line.split()
-                line_id = int(items[0].lstrip('_*'))
+                line_id = items[0]
                 vector = np.array([float(e) for e in items[1:]])
-                self.embed_dict[line_id] = vector
+                embed_dict[line_id] = vector
+        return embed_dict
 
     def query(self):
         while True:
-            input_line_id = raw_input('\nPlease input the line id: ')
-            if input_line_id == 'E':
+            input_line = raw_input('\nPlease input the line id: ')
+            if input_line == 'E':
                 break
-            line_id = int(input_line_id)
-            most_similar = self.find_most_similar(line_id)
-            print 'Query:', self.tweet_text_dict[line_id]
-            for sim, id in most_similar:
-                text = self.tweet_text_dict[id]
-                print '{:>8} {:<}'.format(str(sim), text)
+            items = input_line.split()
+            type_id, query_string = int(items[0]), items[1]
+            query_vector = self.embed_vectors[type_id][query_string]
+            for embed_dict in self.embed_vectors:
+                most_similar = self.find_most_similar(embed_dict, query_vector)
+                for sim, entity in most_similar:
+                    # text = self.tweet_text_dict[id]
+                    print '{:>8} {:<}'.format(str(sim), entity)
 
-    def find_most_similar(self, line_id):
+    def find_most_similar(self, embed_dict, query_vector):
         heap = []
-        query_vector = self.embed_dict[line_id]
-        for key in self.embed_dict:
-            if key == line_id:  continue
-            vector = self.embed_dict[key]
+        for key in embed_dict:
+            vector = embed_dict[key]
             sim = 1.0 - cosine(query_vector, vector)
             # print vector, query_vector, sim
             if len(heap) < 20:

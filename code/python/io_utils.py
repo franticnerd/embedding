@@ -17,8 +17,6 @@ class IO:
         self.exp = self.para['mongo']['exp']
         self.num_bins = self.para['grid']
 
-
-
     def init_files(self):
         self.models_dir = self.para['file']['models']['dir']
         self.output_dir = self.para['file']['output']['dir']
