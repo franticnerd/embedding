@@ -11,6 +11,9 @@ from io_utils import IO
 from subprocess import call
 from scipy.special import expit
 import math
+from sklearn.feature_extraction import DictVectorizer
+from sklearn.decomposition import TruncatedSVD
+from sklearn.utils.extmath import randomized_svd
 
 
 class PmiPredictor:
@@ -60,13 +63,13 @@ class PmiPredictor:
 		time = [self.pd["convert_ts"](time)]
 		l = self.lClus.predict(location)
 		t = self.tClus.predict(time)
-		lw = [ et2net['lw'][l][w] for w in words if l in et2net['lw'] and w in et2net['lw'][l] ]
-		tw = [ et2net['tw'][t][w] for w in words if t in et2net['tw'] and w in et2net['tw'][t] ]
-		lw_score = sum(lw)/len(lw) if lw else 0
-		tw_score = sum(tw)/len(tw) if tw else 0
-		# lw_score = sum(lw) if lw else 0
-		# tw_score = sum(tw) if tw else 0
-		lt_score = et2net['lt'][l][t] if l in et2net['lt'] and t in et2net['lt'][l] else 0
+		lw = [ et2net['lw'][l][w] for w in words ]
+		tw = [ et2net['tw'][t][w] for w in words ]
+		lw_score = sum(lw)/len(lw)
+		tw_score = sum(tw)/len(tw)
+		# lw_score = sum(lw)
+		# tw_score = sum(tw)
+		lt_score = et2net['lt'][l][t]
 		score = lw_score+tw_score+lt_score
 		return round(score, 6)
 
@@ -84,13 +87,13 @@ class SvdPredictor:
 
 	def prepare_training_data(self, tweets):
 		nt2nodes = {nt:defaultdict(float) for nt in self.pd["ntList"]}
-		maxDim = max(len(self.lClus.get_centers()), len(self.tClus.get_centers()))
-		et2net = {et:[defaultdict(float) for _ in range(maxDim)] for et in ['lt','lw','tw']}
 		texts = [tweet.words for tweet in tweets]
 		locations = [[tweet.lat, tweet.lng] for tweet in tweets]
 		times  = [[self.pd["convert_ts"](tweet.ts)] for tweet in tweets]
 		ls = self.lClus.fit(locations)
 		ts = self.tClus.fit(times)
+		maxDim = max(len(self.lClus.get_centers()), len(self.tClus.get_centers()))
+		et2net = {et:[defaultdict(float) for _ in range(maxDim)] for et in ['lt','lw','tw']}
 
 		# load voca
 		word_localness = pickle.load(open(IO().models_dir+'word_localness.model', 'r'))
@@ -98,6 +101,7 @@ class SvdPredictor:
 		voca.remove("")
 
 		for location, time, text, l, t in zip(locations, times, texts, ls, ts):
+			l, t = int(l), int(t)
 			nt2nodes['l'][l] += 1
 			nt2nodes['t'][t] += 1
 			et2net['lt'][l][t] += 1
@@ -108,8 +112,13 @@ class SvdPredictor:
 				et2net['lw'][l][w] += 1
 
 		for et in ['lt','lw','tw']:
-			vec = DictVectorizer()
-			vec.fit_transform(measurements)
+			vectorizer = DictVectorizer()
+			X = vectorizer.fit_transform(et2net[et])
+			U, Sigma, VT = randomized_svd(X, n_components=200,n_iter=5)
+			X = np.dot(np.dot(U,np.diag(Sigma)),VT)
+			net = vectorizer.inverse_transform(X)
+			for u in range(len(net)):
+				et2net[et][u] = defaultdict(float,net[u])
 
 		return nt2nodes, et2net
 
@@ -119,14 +128,15 @@ class SvdPredictor:
 		time = [self.pd["convert_ts"](time)]
 		l = self.lClus.predict(location)
 		t = self.tClus.predict(time)
-		wl = [ et2net['wl'][w][l] for w in words if w in et2net['wl'] and l in et2net['wl'][w] ]
-		wt = [ et2net['wt'][w][t] for w in words if w in et2net['wt'] and l in et2net['wl'][w] ]
-		wl_score = sum(wl)/len(wl) if wl else 0
-		wt_score = sum(wt)/len(wt) if wt else 0
-		# wl_score = sum(wl) if wl else 0
-		# wt_score = sum(wt) if wt else 0
-		lt_score = et2net['lt'][l][t] if l in et2net['lt'] and t in et2net['lt'][l] else 0
-		score = wl_score+wt_score+lt_score
+		l, t = int(l), int(t)
+		lw = [ et2net['lw'][l][w] for w in words ]
+		tw = [ et2net['tw'][t][w] for w in words ]
+		lw_score = sum(lw)/len(lw)
+		tw_score = sum(tw)/len(tw)
+		# lw_score = sum(lw)
+		# tw_score = sum(tw)
+		lt_score = et2net['lt'][l][t]
+		score = lw_score+tw_score+lt_score
 		return round(score, 6)
 
 

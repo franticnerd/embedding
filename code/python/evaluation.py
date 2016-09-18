@@ -179,11 +179,11 @@ if __name__ == '__main__':
 		# 	predictor = train(tweets[:trainSize], pd)
 		# 	QuantitativeEval(predictor).computeMRR(tweets[trainSize:], pd)
 
-	# for predict_type in ['w','l','t']:
-	# 	pd = dict(paras.pd)
-	# 	pd["predict_type"] = predict_type
-	# 	predictor = train(tweets[:trainSize], pd)
-	# 	QuantitativeEval(predictor).computeMRR(tweets[trainSize:], pd)
+	for predict_type in ['w','l','t']:
+		pd = dict(paras.pd)
+		pd["predict_type"] = predict_type
+		predictor = train(tweets[:trainSize], pd)
+		QuantitativeEval(predictor).computeMRR(tweets[trainSize:], pd)
 
 	# for grid_num in [50]:
 	# 	pd = dict(paras.pd)

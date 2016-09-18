@@ -41,7 +41,8 @@ pd["use_context_vec"] = 1
 pd["version"] = 0
 
 # pd["predictor"] = Gsm2vecPredictor
-pd["predictor"] = PmiPredictor
+# pd["predictor"] = PmiPredictor
+pd["predictor"] = SvdPredictor
 pd["gsm2vec"] = Gsm2vec_line
 # pd["gsm2vec"] = Gsm2vec
 # pd["gsm2vec"] = Gsm2vec_relation
