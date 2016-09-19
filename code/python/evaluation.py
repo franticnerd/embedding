@@ -63,7 +63,7 @@ class QuantitativeEval:
 		evalFile.write("node nums: "+str({nt:len(self.predictor.nt2nodes[nt]) for nt in pd["ntList"]})+"\n")
 		evalFile.write("mrr,mr: "+str((mrr,mr))+"\n\n")
 		print mrr, mr
-		return mr
+		return mrr, mr
 
 
 class QualitativeEval:
@@ -119,17 +119,20 @@ def main(job_id, params):
 	rand_seed = pd["rand_seed"]
 	np.random.seed(rand_seed)
 	random.seed(rand_seed)
-	tweets = pickle.load(open(io.models_dir+'act_tweets_'+str(pd["data_size"])+'.model','r'))
+	tweets = pickle.load(open(io.models_dir+'act_tweets_'+'1000000'+'.model','r'))
+	# tweets = pickle.load(open(io.models_dir+'act_tweets_'+str(pd["data_size"])+'.model','r'))
+	random.shuffle(tweets)
 	trainSize = int(len(tweets)*pd["train_ratio"])
-	# random.shuffle(tweets)
+	tweets_train, tweets_test = tweets[:trainSize][:pd["data_size"]], tweets[trainSize:][:10000]
 
-	for para in ['alpha', 'negative']:
+	for para in params:
 		pd[para] = params[para][0]
 
-	predictor = train(tweets[:trainSize],pd)
-	mr = QuantitativeEval(predictor).computeMRR(tweets[trainSize:],pd)
+	predictor = train(tweets_train,pd)
+	mrr, mr = QuantitativeEval(predictor).computeMRR(tweets_test,pd)
 	print "mr:", mr
-	return mr
+	print "mrr:", mrr
+	return -mrr
 
 
 if __name__ == '__main__':
@@ -138,12 +141,16 @@ if __name__ == '__main__':
 	rand_seed = pd["rand_seed"]
 	np.random.seed(rand_seed)
 	random.seed(rand_seed)
-	tweets = pickle.load(open(io.models_dir+'act_tweets_'+str(pd["data_size"])+'.model','r'))
-	trainSize = int(len(tweets)*pd["train_ratio"])
+	tweets = pickle.load(open(io.models_dir+'act_tweets_'+'100000'+'.model','r'))
+	# tweets = pickle.load(open(io.models_dir+'act_tweets_'+str(pd["data_size"])+'.model','r'))
 	random.shuffle(tweets)
+	trainSize = int(len(tweets)*pd["train_ratio"])
+	# tweets_train, tweets_test = tweets[:trainSize][:pd["data_size"]], tweets[trainSize:][:1000]
+	# predictor = train(tweets_train,pd)
+	# QuantitativeEval(predictor).computeMRR(tweets_test,pd)
 
-	predictor = train(tweets[:trainSize],pd)
-	QuantitativeEval(predictor).computeMRR(tweets[trainSize:],pd)
+	predictor = train(tweets[:trainSize], pd)
+	QuantitativeEval(predictor).computeMRR(tweets[trainSize:], pd)
 	
 	# predictor = pickle.load(open(io.models_dir+'gsm2vecPredictor.model','r'))
 	# QualitativeEval(predictor).getNbs1('dodger')
@@ -179,11 +186,11 @@ if __name__ == '__main__':
 		# 	predictor = train(tweets[:trainSize], pd)
 		# 	QuantitativeEval(predictor).computeMRR(tweets[trainSize:], pd)
 
-	for predict_type in ['w','l','t']:
-		pd = dict(paras.pd)
-		pd["predict_type"] = predict_type
-		predictor = train(tweets[:trainSize], pd)
-		QuantitativeEval(predictor).computeMRR(tweets[trainSize:], pd)
+	# for predict_type in ['w','l','t']:
+	# 	pd = dict(paras.pd)
+	# 	pd["predict_type"] = predict_type
+	# 	predictor = train(tweets[:trainSize], pd)
+	# 	QuantitativeEval(predictor).computeMRR(tweets[trainSize:], pd)
 
 	# for grid_num in [50]:
 	# 	pd = dict(paras.pd)

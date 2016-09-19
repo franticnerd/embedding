@@ -16,6 +16,67 @@ from sklearn.decomposition import TruncatedSVD
 from sklearn.utils.extmath import randomized_svd
 
 
+class TfidfPredictor:
+	def __init__(self, pd):
+		self.pd = pd
+		self.lClus = pd["lClus"](pd)
+		self.tClus = pd["tClus"](pd)
+		self.nt2nodes = None
+		self.et2net = None
+
+	def fit(self, tweets):
+		self.nt2nodes, self.et2net = self.prepare_training_data(tweets)
+
+	def prepare_training_data(self, tweets):
+		nt2nodes = {nt:defaultdict(float) for nt in self.pd["ntList"]}
+		et2net = {et:defaultdict(lambda : defaultdict(float)) for et in ['lt','lw','tw','tl','wl','wt']}
+		texts = [tweet.words for tweet in tweets]
+		locations = [[tweet.lat, tweet.lng] for tweet in tweets]
+		times  = [[self.pd["convert_ts"](tweet.ts)] for tweet in tweets]
+		ls = self.lClus.fit(locations)
+		ts = self.tClus.fit(times)
+
+		# load voca
+		word_localness = pickle.load(open(IO().models_dir+'word_localness.model', 'r'))
+		voca = set(zip(*word_localness)[0])
+		voca.remove("")
+
+		for location, time, text, l, t in zip(locations, times, texts, ls, ts):
+			nt2nodes['l'][l] += 1
+			nt2nodes['t'][t] += 1
+			et2net['lt'][l][t] += 1
+			et2net['tl'][t][l] += 1
+			words = [w for w in text if w in voca] # from text, only retain those words appearing in voca
+			for w in words:
+				nt2nodes['w'][w] += 1
+				et2net['tw'][t][w] += 1
+				et2net['wt'][w][t] += 1
+				et2net['lw'][l][w] += 1
+				et2net['wl'][w][l] += 1
+		for et in et2net:
+			net = et2net[et]
+			rnet = et2net[et[::-1]]
+			for u in net:
+				for v in net[u]:
+					net[u][v] /= len(rnet[v])
+					# net[u][v] *= math.log( (len(net)+1)/len(rnet[v]) )
+		return nt2nodes, et2net
+
+	def predict(self, time, lat, lng, words):
+		nt2nodes, et2net = self.nt2nodes, self.et2net
+		location = [lat, lng]
+		time = [self.pd["convert_ts"](time)]
+		l = self.lClus.predict(location)
+		t = self.tClus.predict(time)
+		lw = [ et2net['lw'][l][w] for w in words ]
+		tw = [ et2net['tw'][t][w] for w in words ]
+		lw_score = sum(lw)/len(lw)
+		tw_score = sum(tw)/len(tw)
+		lt_score = et2net['lt'][l][t]
+		score = lw_score+tw_score+lt_score
+		return round(score, 6)
+
+
 class PmiPredictor:
 	def __init__(self, pd):
 		self.pd = pd
@@ -54,6 +115,7 @@ class PmiPredictor:
 			net = et2net[et]
 			for u in net:
 				for v in net[u]:
+					# net[u][v] /= (nt2nodes[et[1]][v])
 					net[u][v] /= (nt2nodes[et[0]][u]*nt2nodes[et[1]][v])
 		return nt2nodes, et2net
 
@@ -67,8 +129,6 @@ class PmiPredictor:
 		tw = [ et2net['tw'][t][w] for w in words ]
 		lw_score = sum(lw)/len(lw)
 		tw_score = sum(tw)/len(tw)
-		# lw_score = sum(lw)
-		# tw_score = sum(tw)
 		lt_score = et2net['lt'][l][t]
 		score = lw_score+tw_score+lt_score
 		return round(score, 6)
@@ -133,8 +193,6 @@ class SvdPredictor:
 		tw = [ et2net['tw'][t][w] for w in words ]
 		lw_score = sum(lw)/len(lw)
 		tw_score = sum(tw)/len(tw)
-		# lw_score = sum(lw)
-		# tw_score = sum(tw)
 		lt_score = et2net['lt'][l][t]
 		score = lw_score+tw_score+lt_score
 		return round(score, 6)
@@ -214,12 +272,6 @@ class Gsm2vecPredictor:
 			nt2node2degree['t'][t] += 1
 			et2net['lt'][l][t] += 1
 			et2net['tl'][t][l] += 1
-			# topl_weights = self.lClus.tops(location, self.pd["kernel_candidate_num"])
-			# topt_weights = self.tClus.tops(time, self.pd["kernel_candidate_num"])
-			# for topt, weight in topt_weights:
-			# 	et2net['lt'][l][topt] += weight
-			# for topl, weight in topl_weights:
-			# 	et2net['tl'][t][topl] += weight
 			words = [w for w in text if w in voca] # from text, only retain those words appearing in voca
 			for w in words:
 				nt2nodes['w'].add(w)
@@ -228,10 +280,6 @@ class Gsm2vecPredictor:
 				et2net['wt'][w][t] += 1
 				et2net['wl'][w][l] += 1
 				et2net['lw'][l][w] += 1
-				# for topt, weight in topt_weights:
-				# 	et2net['wt'][w][topt] += weight
-				# for topl, weight in topl_weights:
-				# 	et2net['wl'][w][topl] += weight
 			for w1, w2 in itertools.combinations(words, r=2):
 				et2net['ww'][w1][w2] += 1
 				et2net['ww'][w2][w1] += 1
@@ -242,11 +290,12 @@ class Gsm2vecPredictor:
 		self.encode_continuous_proximity("tt", self.tClus, et2net, nt2nodes)
 		print "encoded_continuous_proximity"
 
-		for et in et2net:
-			net = et2net[et]
-			for u in net:
-				for v in net[u]:
-					net[u][v] /= (nt2node2degree[et[1]][v])
+		# for et in et2net:
+		# 	net = et2net[et]
+		# 	rnet = et2net[et[::-1]]
+		# 	for u in net:
+		# 		for v in net[u]:
+		# 			net[u][v] /= len(rnet[v])
 		return nt2nodes, {et:et2net[et] for et in self.pd["etList"]}
 
 	def encode_continuous_proximity(self, et, clus, et2net, nt2nodes):
@@ -261,9 +310,9 @@ class Gsm2vecPredictor:
 		edges.sort(key=lambda tup:tup[2])
 		for n1, n2, dist in edges[:len(nodes)*self.pd["nb_num"]]:
 			if nt=='l':
-				proximity = self.pd["kernel"](dist, self.pd["bandwidth_l"])
+				proximity = self.pd["kernel"](dist, self.pd["kernel_bandwidth_l"])
 			else:
-				proximity = self.pd["kernel"](dist, self.pd["bandwidth_t"])
+				proximity = self.pd["kernel"](dist, self.pd["kernel_bandwidth_t"])
 			et2net[et][n1][n2] = proximity
 			et2net[et][n2][n1] = proximity
 
@@ -339,16 +388,16 @@ class Gsm2vecPredictor:
 
 class LMeanshiftClus(object):
 	def __new__(cls, pd):
-		return MeanshiftClus(pd, pd["bandwidth_l"])
+		return MeanshiftClus(pd, pd["bandwidth_l"], pd["kernel_bandwidth_l"])
 
 class TMeanshiftClus(object):
 	def __new__(cls, pd):
-		return MeanshiftClus(pd, pd["bandwidth_t"])
+		return MeanshiftClus(pd, pd["bandwidth_t"], pd["kernel_bandwidth_t"])
 
 class MeanshiftClus:
-	def __init__(self, pd, bandwidth):
+	def __init__(self, pd, bandwidth, kernel_bandwidth):
 		self.pd = pd
-		self.bandwidth = bandwidth
+		self.kernel_bandwidth = kernel_bandwidth
 		self.ms = MeanShift(bandwidth=bandwidth, bin_seeding=True, n_jobs=5)
 
 	def fit(self, X):
@@ -367,7 +416,7 @@ class MeanshiftClus:
 		for clus, center in enumerate(self.ms.cluster_centers_):
 			candidates.append( (str(clus), np.linalg.norm(np.array(x)-center)) )
 		candidates.sort(key=lambda tup:tup[1])
-		return [(candidate[0], self.pd["kernel"](candidate[1], self.bandwidth) ) for candidate in candidates[:self.pd["kernel_candidate_num"]]]
+		return [(candidate[0], self.pd["kernel"](candidate[1], self.kernel_bandwidth) ) for candidate in candidates[:self.pd["kernel_candidate_num"]]]
 
 class LGridClus:
 	def __init__(self, pd):
@@ -461,7 +510,7 @@ class Gsm2vec_line:
 		command += ["-samples", str(self.pd["samples"])]
 		command += ["-threads", str(self.pd["threads"])]
 		command += ["-second_order", str(self.pd["second_order"])]
-		call(command, cwd=self.io.line_dir)
+		call(command, cwd=self.io.line_dir, stdout=open("stdout.txt","wb"))
 
 	def read_line_output(self):
 		for nt in self.pd["ntList"]:

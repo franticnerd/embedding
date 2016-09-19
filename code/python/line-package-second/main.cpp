@@ -62,7 +62,7 @@ void *training_thread(void *id)
         {
             edge_count_actual += edge_count - last_edge_count;
             last_edge_count = edge_count;
-            printf("%cAlpha: %f Progress: %.3lf%%", 13, alpha, (real)edge_count_actual / (real)(samples + 1) * 100);
+            // printf("%cAlpha: %f Progress: %.3lf%%", 13, alpha, (real)edge_count_actual / (real)(samples + 1) * 100);
             fflush(stdout);
             alpha = starting_alpha * (1 - edge_count_actual / (real)(samples + 1));
             if (alpha < starting_alpha * 0.0001) alpha = starting_alpha * 0.0001;
