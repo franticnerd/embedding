@@ -7,7 +7,6 @@ import cPickle as pickle
 from zutils.formula import listCosine
 import itertools
 import sys
-from io_utils import IO
 from subprocess import call
 from scipy.special import expit
 import math
@@ -24,10 +23,10 @@ class TfidfPredictor:
 		self.nt2nodes = None
 		self.et2net = None
 
-	def fit(self, tweets):
-		self.nt2nodes, self.et2net = self.prepare_training_data(tweets)
+	def fit(self, tweets, voca):
+		self.nt2nodes, self.et2net = self.prepare_training_data(tweets, voca)
 
-	def prepare_training_data(self, tweets):
+	def prepare_training_data(self, tweets, voca):
 		nt2nodes = {nt:defaultdict(float) for nt in self.pd["ntList"]}
 		et2net = {et:defaultdict(lambda : defaultdict(float)) for et in ['lt','lw','tw','tl','wl','wt']}
 		texts = [tweet.words for tweet in tweets]
@@ -35,11 +34,6 @@ class TfidfPredictor:
 		times  = [[self.pd["convert_ts"](tweet.ts)] for tweet in tweets]
 		ls = self.lClus.fit(locations)
 		ts = self.tClus.fit(times)
-
-		# load voca
-		word_localness = pickle.load(open(IO().models_dir+'word_localness.model', 'r'))
-		voca = set(zip(*word_localness)[0])
-		voca.remove("")
 
 		for location, time, text, l, t in zip(locations, times, texts, ls, ts):
 			nt2nodes['l'][l] += 1
@@ -85,10 +79,10 @@ class PmiPredictor:
 		self.nt2nodes = None
 		self.et2net = None
 
-	def fit(self, tweets):
-		self.nt2nodes, self.et2net = self.prepare_training_data(tweets)
+	def fit(self, tweets, voca):
+		self.nt2nodes, self.et2net = self.prepare_training_data(tweets, voca)
 
-	def prepare_training_data(self, tweets):
+	def prepare_training_data(self, tweets, voca):
 		nt2nodes = {nt:defaultdict(float) for nt in self.pd["ntList"]}
 		et2net = {et:defaultdict(lambda : defaultdict(float)) for et in ['lt','lw','tw']}
 		texts = [tweet.words for tweet in tweets]
@@ -96,11 +90,6 @@ class PmiPredictor:
 		times  = [[self.pd["convert_ts"](tweet.ts)] for tweet in tweets]
 		ls = self.lClus.fit(locations)
 		ts = self.tClus.fit(times)
-
-		# load voca
-		word_localness = pickle.load(open(IO().models_dir+'word_localness.model', 'r'))
-		voca = set(zip(*word_localness)[0])
-		voca.remove("")
 
 		for location, time, text, l, t in zip(locations, times, texts, ls, ts):
 			nt2nodes['l'][l] += 1
@@ -147,10 +136,10 @@ class SvdPredictor:
 		self.nt2nodes = None
 		self.et2net = None
 
-	def fit(self, tweets):
-		self.nt2nodes, self.et2net = self.prepare_training_data(tweets)
+	def fit(self, tweets, voca):
+		self.nt2nodes, self.et2net = self.prepare_training_data(tweets, voca)
 
-	def prepare_training_data(self, tweets):
+	def prepare_training_data(self, tweets, voca):
 		nt2nodes = {nt:defaultdict(float) for nt in self.pd["ntList"]}
 		texts = [tweet.words for tweet in tweets]
 		locations = [[tweet.lat, tweet.lng] for tweet in tweets]
@@ -159,11 +148,6 @@ class SvdPredictor:
 		ts = self.tClus.fit(times)
 		maxDim = max(len(self.lClus.get_centers()), len(self.tClus.get_centers()))
 		et2net = {et:[defaultdict(float) for _ in range(maxDim)] for et in ['lt','lw','tw']}
-
-		# load voca
-		word_localness = pickle.load(open(IO().models_dir+'word_localness.model', 'r'))
-		voca = set(zip(*word_localness)[0])
-		voca.remove("")
 
 		for location, time, text, l, t in zip(locations, times, texts, ls, ts):
 			l, t = int(l), int(t)
@@ -210,28 +194,23 @@ class Gsm2vecPredictor:
 		self.tClus = pd["tClus"](pd)
 		self.nt2vecs = None
 
-	def fit(self, tweets):
+	def fit(self, tweets, voca):
 		gsm2vec = self.pd["gsm2vec"](self.pd)
 		if isinstance(gsm2vec, Gsm2vec_relation):
-			nt2nodes, relations = self.prepare_training_data_for_Gsm2vec_relation(tweets)
+			nt2nodes, relations = self.prepare_training_data_for_Gsm2vec_relation(tweets, voca)
 			self.nt2vecs = gsm2vec.fit(nt2nodes, relations)
 		else:
-			nt2nodes, et2net = self.prepare_training_data(tweets)
+			nt2nodes, et2net = self.prepare_training_data(tweets, voca)
 			self.nt2vecs = gsm2vec.fit(nt2nodes, et2net)
 		self.nt2nodes = nt2nodes
 
-	def prepare_training_data_for_Gsm2vec_relation(self, tweets):
+	def prepare_training_data_for_Gsm2vec_relation(self, tweets, voca):
 		nt2nodes = {nt:set() for nt in self.pd["ntList"]}
 		texts = [tweet.words for tweet in tweets]
 		locations = [[tweet.lat, tweet.lng] for tweet in tweets]
 		times  = [[self.pd["convert_ts"](tweet.ts)] for tweet in tweets]
 		ls = self.lClus.fit(locations)
 		ts = self.tClus.fit(times)
-
-		# load voca
-		word_localness = pickle.load(open(IO().models_dir+'word_localness.model', 'r'))
-		voca = set(zip(*word_localness)[0])
-		voca.remove("")
 
 		relations = []
 		for location, time, text, l, t in zip(locations, times, texts, ls, ts):
@@ -254,7 +233,7 @@ class Gsm2vecPredictor:
 
 		return nt2nodes, relations
 
-	def prepare_training_data(self, tweets):
+	def prepare_training_data(self, tweets, voca):
 		nt2nodes = {nt:set() for nt in self.pd["ntList"]}
 		nt2node2degree = {nt:defaultdict(float) for nt in self.pd["ntList"]}
 		all_et = [nt1+nt2 for nt1, nt2 in itertools.product(self.pd["ntList"], repeat=2)]
@@ -264,11 +243,6 @@ class Gsm2vecPredictor:
 		times  = [[self.pd["convert_ts"](tweet.ts)] for tweet in tweets]
 		ls = self.lClus.fit(locations)
 		ts = self.tClus.fit(times)
-
-		# load voca
-		word_localness = pickle.load(open(IO().models_dir+'word_localness.model', 'r'))
-		voca = set(zip(*word_localness)[0])
-		voca.remove("")
 
 		for location, time, text, l, t in zip(locations, times, texts, ls, ts):
 			nt2nodes['l'].add(l)
@@ -485,7 +459,6 @@ class Gsm2vec_line:
 	def __init__(self, pd):
 		self.pd = pd
 		self.nt2vecs = dict()
-		self.io = IO()
 
 	def fit(self, nt2nodes, et2net):
 		self.write_line_input(nt2nodes, et2net)
@@ -496,12 +469,12 @@ class Gsm2vec_line:
 	def write_line_input(self, nt2nodes, et2net):
 		for nt, nodes in nt2nodes.items():
 			print nt, len(nodes)
-			node_file = open(self.io.line_dir+"node-"+nt+".txt", 'w')
+			node_file = open(self.pd["line_dir"]+"node-"+nt+".txt", 'w')
 			for node in nodes:
 				node_file.write(node+"\n")
 		all_et = [nt1+nt2 for nt1, nt2 in itertools.product(self.pd["ntList"], repeat=2)]
 		for et in all_et:
-			edge_file = open(self.io.line_dir+"edge-"+et+".txt", 'w')
+			edge_file = open(self.pd["line_dir"]+"edge-"+et+".txt", 'w')
 			if et in et2net:
 				for u, u_nb in et2net[et].items():
 					for v, weight in u_nb.items():
@@ -515,14 +488,14 @@ class Gsm2vec_line:
 		command += ["-samples", str(self.pd["samples"])]
 		command += ["-threads", str(self.pd["threads"])]
 		command += ["-second_order", str(self.pd["second_order"])]
-		call(command, cwd=self.io.line_dir, stdout=open("stdout.txt","wb"))
+		call(command, cwd=self.pd["line_dir"], stdout=open("stdout.txt","wb"))
 
 	def read_line_output(self):
 		for nt in self.pd["ntList"]:
 			if nt!=self.pd["predict_type"] and self.pd["second_order"] and self.pd["use_context_vec"]:
-				vecs_file = open(self.io.line_dir+"context-"+nt+".txt", 'r')
+				vecs_file = open(self.pd["line_dir"]+"context-"+nt+".txt", 'r')
 			else:
-				vecs_file = open(self.io.line_dir+"output-"+nt+".txt", 'r')
+				vecs_file = open(self.pd["line_dir"]+"output-"+nt+".txt", 'r')
 			vecs = dict()
 			for line in vecs_file:
 				node, vec_str = line.strip().split("\t")

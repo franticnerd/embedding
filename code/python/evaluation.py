@@ -8,8 +8,9 @@ import bisect
 import gsm2vec
 import os
 import folium
+from collections import defaultdict
 
-io = IO()
+io = IO('../run/'+paras.pd['dataset']+'.yaml')
 
 class QuantitativeEval:
 	def __init__(self,predictor):
@@ -103,32 +104,57 @@ class QualitativeEval:
 def train(tweets,pd):
 	start_time = time.time()
 	predictor = pd["predictor"](pd)
-	predictor.fit(tweets)
+	predictor.fit(tweets, get_voca(tweets)) 
 	# pickle.dump(predictor,open(io.models_dir+'gsm2vecPredictor.model','w'))
 	evalFile = open(io.eval_file,'a')
 	evalFile.write("time for training: "+str(time.time()-start_time)+"\n")
 	return predictor
+
+def get_voca(tweets):
+	if self.pd['dataset']=='la':
+		word_localness = pickle.load(open(IO().models_dir+'word_localness.model', 'r'))
+		voca = set(zip(*word_localness)[0])
+		voca.remove("")
+	else:
+		word2freq = defaultdict(int)
+		for tweet in tweets:
+			for word in tweet.words:
+				word2freq[word] += 1
+		word_and_freq = word2freq.items().rank(reverse=True, key=lambda tup:tup[1])
+		print word_and_freq[10000]
+		print word_and_freq[20000]
+		voca = set(zip(*word_and_freq[:10000])[0])
+	return voca
+
+def read_tweets():
+	if self.pd['dataset']=='la':
+		tweets = pickle.load(open(io.models_dir+'act_tweets_'+'1000000'+'.model','r'))
+		# tweets = pickle.load(open(io.models_dir+'act_tweets_'+str(pd["data_size"])+'.model','r'))
+		random.shuffle(tweets)
+		trainSize = int(len(tweets)*pd["train_ratio"])
+		tweets_train, tweets_test = tweets[:trainSize][:pd["data_size"]], tweets[trainSize:][:10000]
+	else:
+		train_db = DB(io.clean_text_file, io.dns, io.port, io.db, 'train', io.index)
+		tweets_train = [tweet for tweet in train_db.get_tweets_from_db()]
+		test_db = DB(io.clean_text_file, io.dns, io.port, io.db, 'test', io.index)
+		tweets_test = [tweet for tweet in test_db.get_tweets_from_db()]
+	return tweets_train, tweets_test
 
 def main(job_id, params):
 	params = [param[0] for param in params]
 	print params
 
 	pd = dict(paras.pd)
+	for para in params:
+		pd[para] = params[para]
 
 	rand_seed = pd["rand_seed"]
 	np.random.seed(rand_seed)
 	random.seed(rand_seed)
-	tweets = pickle.load(open(io.models_dir+'act_tweets_'+'1000000'+'.model','r'))
-	# tweets = pickle.load(open(io.models_dir+'act_tweets_'+str(pd["data_size"])+'.model','r'))
-	random.shuffle(tweets)
-	trainSize = int(len(tweets)*pd["train_ratio"])
-	tweets_train, tweets_test = tweets[:trainSize][:pd["data_size"]], tweets[trainSize:][:10000]
-
-	for para in params:
-		pd[para] = params[para]
-
-	predictor = train(tweets_train,pd)
-	mrr, mr = QuantitativeEval(predictor).computeMRR(tweets_test,pd)
+	
+	tweets_train, tweets_test = read_tweets()
+	predictor = train(tweets_train, pd)
+	mrr, mr = QuantitativeEval(predictor).computeMRR(tweets_test, pd)
 	print "mr:", mr
 	print "mrr:", mrr
 	return -mrr
