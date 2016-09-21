@@ -58,8 +58,8 @@ class TfidfPredictor:
 			rnet = et2net[et[::-1]]
 			for u in net:
 				for v in net[u]:
-					net[u][v] /= len(rnet[v])
-					# net[u][v] *= math.log( (len(net)+1)/len(rnet[v]) )
+					# net[u][v] /= len(rnet[v])
+					net[u][v] *= math.log( (len(net)+1)/len(rnet[v]) )
 		return nt2nodes, et2net
 
 	def predict(self, time, lat, lng, words):
@@ -116,7 +116,8 @@ class PmiPredictor:
 			for u in net:
 				for v in net[u]:
 					# net[u][v] /= (nt2nodes[et[1]][v])
-					net[u][v] /= (nt2nodes[et[0]][u]*nt2nodes[et[1]][v])
+					# net[u][v] /= (nt2nodes[et[0]][u]*nt2nodes[et[1]][v])
+					net[u][v] = math.log( (net[u][v]*len(tweets)) / (nt2nodes[et[0]][u]*nt2nodes[et[1]][v]) )
 		return nt2nodes, et2net
 
 	def predict(self, time, lat, lng, words):
@@ -127,8 +128,12 @@ class PmiPredictor:
 		t = self.tClus.predict(time)
 		lw = [ et2net['lw'][l][w] for w in words ]
 		tw = [ et2net['tw'][t][w] for w in words ]
-		lw_score = sum(lw)/len(lw)
-		tw_score = sum(tw)/len(tw)
+		# lw_score = sum(lw)/len(lw)
+		# tw_score = sum(tw)/len(tw)
+		# lw = [ math.log(et2net['lw'][l][w]) for w in words if w in et2net['lw'][l]]
+		# tw = [ math.log(et2net['tw'][t][w]) for w in words if w in et2net['tw'][t]]
+		lw_score = sum(lw)/len(lw) if lw else 0
+		tw_score = sum(tw)/len(tw) if tw else 0
 		lt_score = et2net['lt'][l][t]
 		score = lw_score+tw_score+lt_score
 		return round(score, 6)

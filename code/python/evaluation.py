@@ -62,7 +62,6 @@ class QuantitativeEval:
 		evalFile.write(paras.pd2string(pd))
 		evalFile.write("node nums: "+str({nt:len(self.predictor.nt2nodes[nt]) for nt in pd["ntList"]})+"\n")
 		evalFile.write("mrr,mr: "+str((mrr,mr))+"\n\n")
-		print mrr, mr
 		return mrr, mr
 
 
@@ -111,7 +110,7 @@ def train(tweets,pd):
 	return predictor
 
 def main(job_id, params):
-	print 'Anything printed here will end up in the output directory for job #:', str(job_id)
+	params = [param[0] for param in params]
 	print params
 
 	pd = dict(paras.pd)
@@ -126,7 +125,7 @@ def main(job_id, params):
 	tweets_train, tweets_test = tweets[:trainSize][:pd["data_size"]], tweets[trainSize:][:10000]
 
 	for para in params:
-		pd[para] = params[para][0]
+		pd[para] = params[para]
 
 	predictor = train(tweets_train,pd)
 	mrr, mr = QuantitativeEval(predictor).computeMRR(tweets_test,pd)
