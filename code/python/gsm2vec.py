@@ -13,7 +13,7 @@ import math
 from sklearn.feature_extraction import DictVectorizer
 from sklearn.decomposition import TruncatedSVD
 from sklearn.utils.extmath import randomized_svd
-
+from sklearn.neighbors import NearestNeighbors
 
 class TfidfPredictor:
 	def __init__(self, pd):
@@ -117,10 +117,6 @@ class PmiPredictor:
 		t = self.tClus.predict(time)
 		lw = [ et2net['lw'][l][w] for w in words ]
 		tw = [ et2net['tw'][t][w] for w in words ]
-		# lw_score = sum(lw)/len(lw)
-		# tw_score = sum(tw)/len(tw)
-		# lw = [ math.log(et2net['lw'][l][w]) for w in words if w in et2net['lw'][l]]
-		# tw = [ math.log(et2net['tw'][t][w]) for w in words if w in et2net['tw'][t]]
 		lw_score = sum(lw)/len(lw) if lw else 0
 		tw_score = sum(tw)/len(tw) if tw else 0
 		lt_score = et2net['lt'][l][t]
@@ -260,8 +256,9 @@ class Gsm2vecPredictor:
 				et2net['wl'][w][l] += 1
 				et2net['lw'][l][w] += 1
 			for w1, w2 in itertools.combinations(words, r=2):
-				et2net['ww'][w1][w2] += 1
-				et2net['ww'][w2][w1] += 1
+				if w1!=w2:
+					et2net['ww'][w1][w2] += 1
+					et2net['ww'][w2][w1] += 1
 
 		# encode_continuous_proximity
 		print "encoding_continuous_proximity"
@@ -278,66 +275,47 @@ class Gsm2vecPredictor:
 		return nt2nodes, {et:et2net[et] for et in self.pd["etList"]}
 
 	def encode_continuous_proximity(self, et, clus, et2net, nt2nodes):
-		centers = clus.get_centers()
 		nt = et[0]
 		nodes = nt2nodes[nt]
-		edges = []
-		i = 0
-		for n1, n2 in itertools.combinations(nodes, r=2):
-			dist = np.linalg.norm(np.array(centers[int(n1)])-np.array(centers[int(n2)]))
-			edges.append((n1, n2, dist))
-		edges.sort(key=lambda tup:tup[2])
-		for n1, n2, dist in edges[:len(nodes)*self.pd["nb_num"]]:
-			if nt=='l':
-				proximity = self.pd["kernel"](dist, self.pd["kernel_bandwidth_l"])
-			else:
-				proximity = self.pd["kernel"](dist, self.pd["kernel_bandwidth_t"])
-			et2net[et][n1][n2] = proximity
-			et2net[et][n2][n1] = proximity
+		for n1 in nodes:
+			center = clus.get_centers()[int(n1)]
+			for n2, proximity in clus.tops(center):
+				if n1!=n2:
+					et2net[et][n1][n2] = proximity
+					et2net[et][n2][n1] = proximity
 
-	def gen_spatial_feature(lat, lng):
+	def gen_spatial_feature(self, lat, lng):
+		nt2vecs = self.nt2vecs
 		location = [lat, lng]
-		if not self.pd["kernel_candidate_num"]:
-			l = self.lClus.predict(location)
-			ls_vec = nt2vecs['l'][l] if l in nt2vecs['l'] else np.zeros(self.pd["dim"])
-		else:
+		if self.pd['version']==0 and self.pd["kernel_nb_num"]:
 			l_vecs = [nt2vecs['l'][l]*weight for l, weight in self.lClus.tops(location) if l in nt2vecs['l']]
 			ls_vec = np.average(l_vecs, axis=0) if l_vecs else np.zeros(self.pd["dim"])
+		else:
+			l = self.lClus.predict(location)
+			ls_vec = nt2vecs['l'][l] if l in nt2vecs['l'] else np.zeros(self.pd["dim"])
 		return ls_vec
 
-	def gen_temporal_feature(time):
+	def gen_temporal_feature(self, time):
+		nt2vecs = self.nt2vecs
 		time = [self.pd["convert_ts"](time)]
-		if not self.pd["kernel_candidate_num"]:
-			t = self.tClus.predict(time)
-			ts_vec = nt2vecs['t'][t] if t in nt2vecs['t'] else np.zeros(self.pd["dim"])
-		else:
+		if self.pd['version']==0 and self.pd["kernel_nb_num"]:
 			t_vecs = [nt2vecs['t'][t]*weight for t, weight in self.tClus.tops(time) if t in nt2vecs['t']]
 			ts_vec = np.average(t_vecs, axis=0) if t_vecs else np.zeros(self.pd["dim"])
+		else:
+			t = self.tClus.predict(time)
+			ts_vec = nt2vecs['t'][t] if t in nt2vecs['t'] else np.zeros(self.pd["dim"])
 		return ts_vec
 
-	def gen_textual_feature(time):
+	def gen_textual_feature(self, words):
+		nt2vecs = self.nt2vecs
 		w_vecs = [nt2vecs['w'][w] for w in words if w in nt2vecs['w']]
 		ws_vec = np.average(w_vecs, axis=0) if w_vecs else np.zeros(self.pd["dim"])
 		return ws_vec
 
 	def predict(self, time, lat, lng, words):
-		nt2vecs = self.nt2vecs
-		location = [lat, lng]
-		time = [self.pd["convert_ts"](time)]
-
-		if not self.pd["kernel_candidate_num"]:
-			l = self.lClus.predict(location)
-			t = self.tClus.predict(time)
-			ls_vec = nt2vecs['l'][l] if l in nt2vecs['l'] else np.zeros(self.pd["dim"])
-			ts_vec = nt2vecs['t'][t] if t in nt2vecs['t'] else np.zeros(self.pd["dim"])
-		else:
-			l_vecs = [nt2vecs['l'][l]*weight for l, weight in self.lClus.tops(location) if l in nt2vecs['l']]
-			t_vecs = [nt2vecs['t'][t]*weight for t, weight in self.tClus.tops(time) if t in nt2vecs['t']]
-			ls_vec = np.average(l_vecs, axis=0) if l_vecs else np.zeros(self.pd["dim"])
-			ts_vec = np.average(t_vecs, axis=0) if t_vecs else np.zeros(self.pd["dim"])
-
-		w_vecs = [nt2vecs['w'][w] for w in words if w in nt2vecs['w']]
-		ws_vec = np.average(w_vecs, axis=0) if w_vecs else np.zeros(self.pd["dim"])
+		ls_vec = self.gen_spatial_feature(lat, lng)
+		ts_vec = self.gen_temporal_feature(time)
+		ws_vec = self.gen_textual_feature(words)
 		score = listCosine(ls_vec, ts_vec)+listCosine(ts_vec, ws_vec)+listCosine(ws_vec, ls_vec) #1
 		return round(score, 6)
 
@@ -367,21 +345,23 @@ class Gsm2vecPredictor:
 
 class LMeanshiftClus(object):
 	def __new__(cls, pd):
-		return MeanshiftClus(pd, pd["bandwidth_l"], pd["kernel_bandwidth_l"])
+		return MeanshiftClus(pd, pd["bandwidth_l"], pd["kernel_bandwidth_l"], pd["kernel_nb_num"])
 
 class TMeanshiftClus(object):
 	def __new__(cls, pd):
-		return MeanshiftClus(pd, pd["bandwidth_t"], pd["kernel_bandwidth_t"])
+		return MeanshiftClus(pd, pd["bandwidth_t"], pd["kernel_bandwidth_t"], pd["kernel_nb_num"])
 
 class MeanshiftClus:
-	def __init__(self, pd, bandwidth, kernel_bandwidth):
+	def __init__(self, pd, bandwidth, kernel_bandwidth, kernel_nb_num):
 		self.pd = pd
 		self.kernel_bandwidth = kernel_bandwidth
 		self.ms = MeanShift(bandwidth=bandwidth, bin_seeding=True, n_jobs=5)
+		self.nbrs = NearestNeighbors(n_neighbors=kernel_nb_num, algorithm='ball_tree')
 
 	def fit(self, X):
 		X = np.array(X)
 		self.ms.fit(X)
+		self.nbrs.fit(self.ms.cluster_centers_)
 		return [str(label) for label in self.ms.labels_]
 
 	def predict(self, x):
@@ -391,11 +371,8 @@ class MeanshiftClus:
 		return [list(center) for center in self.ms.cluster_centers_]
 
 	def tops(self, x):
-		candidates = []
-		for clus, center in enumerate(self.ms.cluster_centers_):
-			candidates.append( (str(clus), np.linalg.norm(np.array(x)-center)) )
-		candidates.sort(key=lambda tup:tup[1])
-		return [(candidate[0], self.pd["kernel"](candidate[1], self.kernel_bandwidth) ) for candidate in candidates[:self.pd["kernel_candidate_num"]]]
+		[distances], [indices] = self.nbrs.kneighbors([x])
+		return [(str(index), self.pd["kernel"](distance,self.kernel_bandwidth)) for index, distance in zip(indices, distances)]
 
 class LGridClus:
 	def __init__(self, pd):
@@ -469,12 +446,12 @@ class Gsm2vec_line:
 	def write_line_input(self, nt2nodes, et2net):
 		for nt, nodes in nt2nodes.items():
 			print nt, len(nodes)
-			node_file = open(self.pd["line_dir"]+"node-"+nt+".txt", 'w')
+			node_file = open(self.pd["line_dir"]+"node-"+nt+"-"+self.pd["job_id"]+".txt", 'w')
 			for node in nodes:
 				node_file.write(node+"\n")
 		all_et = [nt1+nt2 for nt1, nt2 in itertools.product(self.pd["ntList"], repeat=2)]
 		for et in all_et:
-			edge_file = open(self.pd["line_dir"]+"edge-"+et+".txt", 'w')
+			edge_file = open(self.pd["line_dir"]+"edge-"+et+"-"+self.pd["job_id"]+".txt", 'w')
 			if et in et2net:
 				for u, u_nb in et2net[et].items():
 					for v, weight in u_nb.items():
@@ -488,14 +465,15 @@ class Gsm2vec_line:
 		command += ["-samples", str(self.pd["samples"])]
 		command += ["-threads", str(self.pd["threads"])]
 		command += ["-second_order", str(self.pd["second_order"])]
+		command += ["-job_id", str(self.pd["job_id"])]
 		call(command, cwd=self.pd["line_dir"], stdout=open("stdout.txt","wb"))
 
 	def read_line_output(self):
 		for nt in self.pd["ntList"]:
 			if nt!=self.pd["predict_type"] and self.pd["second_order"] and self.pd["use_context_vec"]:
-				vecs_file = open(self.pd["line_dir"]+"context-"+nt+".txt", 'r')
+				vecs_file = open(self.pd["line_dir"]+"context-"+nt+"-"+self.pd["job_id"]+".txt", 'r')
 			else:
-				vecs_file = open(self.pd["line_dir"]+"output-"+nt+".txt", 'r')
+				vecs_file = open(self.pd["line_dir"]+"output-"+nt+"-"+self.pd["job_id"]+".txt", 'r')
 			vecs = dict()
 			for line in vecs_file:
 				node, vec_str = line.strip().split("\t")
