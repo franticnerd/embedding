@@ -1,0 +1,1 @@
+java -Xmx3000M -jar MGTD.jar -dir ../../data/4sq/ -dfile checkins_geo_topic.txt -est -L 500 -beta 0.5 -gamma 1.0 -alpha0 1.0 -Alpha 1.0 -sampleHyper true -gammaa 1.0 -gammab 0.1 -alpha0a 1.0 -alpha0b 0.1 -Alphaa 0.1 -Alphab 0.1 -delta 10.0 -savestep 5 -twords 20 -niters 5
