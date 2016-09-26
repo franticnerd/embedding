@@ -92,6 +92,8 @@ class MGTM:
         return self.get_regional_topic_prob(region_id, words)
 
 if __name__ == '__main__':
-    mgtm = MGTM('/Users/chao/Dropbox/Research/embedding/data/4sq/mgtm/')
-    print mgtm.calc_probability(42.6413, -73.7781, ['jfk'])
+    # mgtm = MGTM('/Users/chao/Dropbox/Research/embedding/data/4sq/mgtm/')
+    # print mgtm.calc_probability(42.6413, -73.7781, ['jfk'])
 
+    mgtm = MGTM('/Users/chao/Dropbox/Research/embedding/data/la/mgtm/')
+    print mgtm.calc_probability(33.9416, -118.4085, ['studio'])

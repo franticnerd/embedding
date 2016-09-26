@@ -92,7 +92,12 @@ class LGTA:
         return ret
 
 if __name__ == '__main__':
-    lgta = LGTA('/Users/chao/Dropbox/Research/embedding/data/4sq/lgta/')
+    # for 4sq data set
+    # lgta = LGTA('/Users/chao/Dropbox/Research/embedding/data/4sq/lgta/')
+    # lgta.print_top_words()
+    # print lgta.calc_probability(40.6413, -73.7781, ['airport'])
+    # for la data set
+    lgta = LGTA('/Users/chao/Dropbox/Research/embedding/data/la/lgta/')
     lgta.print_top_words()
-    print lgta.calc_probability(40.6413, -73.7781, ['jfk'])
+    print lgta.calc_probability(33.9416, -118.4085, ['lax', 'day'])
 

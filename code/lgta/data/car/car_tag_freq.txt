@@ -1,0 +1,12 @@
+fiat 3731
+chevrolet 5249
+pontiac 1509
+renault 2519
+gmc 968
+cadillac 2693
+citroen 2410
+mercedesbenz 1523
+bmw 7873
+buick 970
+peugeot 1705
+audi 3557
