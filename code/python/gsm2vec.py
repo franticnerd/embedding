@@ -276,18 +276,19 @@ class Gsm2vecPredictor:
 
 	def encode_continuous_proximity(self, et, clus, et2net, nt2nodes):
 		nt = et[0]
-		nodes = nt2nodes[nt]
-		for n1 in nodes:
-			center = clus.get_centers()[int(n1)]
-			for n2, proximity in clus.tops(center):
-				if n1!=n2:
-					et2net[et][n1][n2] = proximity
-					et2net[et][n2][n1] = proximity
+		if self.pd["kernel_nb_num_"+nt]>1:
+			nodes = nt2nodes[nt]
+			for n1 in nodes:
+				center = clus.get_centers()[int(n1)]
+				for n2, proximity in clus.tops(center):
+					if n1!=n2:
+						et2net[et][n1][n2] = proximity
+						et2net[et][n2][n1] = proximity
 
 	def gen_spatial_feature(self, lat, lng):
 		nt2vecs = self.nt2vecs
 		location = [lat, lng]
-		if self.pd['version']==0 and self.pd["kernel_nb_num"]:
+		if self.pd['version']==0 and self.pd["kernel_nb_num_l"]>1:
 			l_vecs = [nt2vecs['l'][l]*weight for l, weight in self.lClus.tops(location) if l in nt2vecs['l']]
 			ls_vec = np.average(l_vecs, axis=0) if l_vecs else np.zeros(self.pd["dim"])
 		else:
@@ -298,7 +299,7 @@ class Gsm2vecPredictor:
 	def gen_temporal_feature(self, time):
 		nt2vecs = self.nt2vecs
 		time = [self.pd["convert_ts"](time)]
-		if self.pd['version']==0 and self.pd["kernel_nb_num"]:
+		if self.pd['version']==0 and self.pd["kernel_nb_num_t"]>1:
 			t_vecs = [nt2vecs['t'][t]*weight for t, weight in self.tClus.tops(time) if t in nt2vecs['t']]
 			ts_vec = np.average(t_vecs, axis=0) if t_vecs else np.zeros(self.pd["dim"])
 		else:
@@ -345,11 +346,11 @@ class Gsm2vecPredictor:
 
 class LMeanshiftClus(object):
 	def __new__(cls, pd):
-		return MeanshiftClus(pd, pd["bandwidth_l"], pd["kernel_bandwidth_l"], pd["kernel_nb_num"])
+		return MeanshiftClus(pd, pd["bandwidth_l"], pd["kernel_bandwidth_l"], pd["kernel_nb_num_l"])
 
 class TMeanshiftClus(object):
 	def __new__(cls, pd):
-		return MeanshiftClus(pd, pd["bandwidth_t"], pd["kernel_bandwidth_t"], pd["kernel_nb_num"])
+		return MeanshiftClus(pd, pd["bandwidth_t"], pd["kernel_bandwidth_t"], pd["kernel_nb_num_t"])
 
 class MeanshiftClus:
 	def __init__(self, pd, bandwidth, kernel_bandwidth, kernel_nb_num):
