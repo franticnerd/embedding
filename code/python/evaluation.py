@@ -1,6 +1,6 @@
+# import dill as pickle
 import cPickle as pickle
 from io_utils import IO
-from baseline import *
 from gsm2vec import *
 import time
 import paras
@@ -10,6 +10,8 @@ import os
 import folium
 from collections import defaultdict
 from zutils.twitter.tweet_database import TweetDatabase as DB
+import summarize
+from subprocess import call
 
 io = IO('../run/'+paras.pd['dataset']+'.yaml')
 
@@ -64,7 +66,7 @@ class QuantitativeEval:
 		evalFile.write(paras.pd2string(pd))
 		evalFile.write("node nums: "+str({nt:len(self.predictor.nt2nodes[nt]) for nt in pd["ntList"]})+"\n")
 		evalFile.write("mrr,mr: "+str((mrr,mr))+"\n\n")
-		return mrr, mr
+		return round(mrr,4), round(mr,4)
 
 
 class QualitativeEval:
@@ -106,7 +108,6 @@ def train(tweets,pd):
 	start_time = time.time()
 	predictor = pd["predictor"](pd)
 	predictor.fit(tweets, get_voca(tweets)) 
-	# pickle.dump(predictor,open(io.models_dir+'gsm2vecPredictor.model','w'))
 	evalFile = open(io.eval_file,'a')
 	evalFile.write("time for training: "+str(time.time()-start_time)+"\n")
 	return predictor
@@ -159,12 +160,76 @@ def main(job_id, params):
 	mrr, mr = QuantitativeEval(predictor).computeMRR(tweets_test, pd)
 	print "mr:", mr
 	print "mrr:", mrr
-	print "time:", time.time()-start_time
+	print "time:", round(time.time()-start_time)
 	return -mrr
 
+def parameter_study(para_name, min_val, max_val, params, point_num=10):
+	pd = dict(paras.pd)
+	for para in params:
+		pd[para] = params[para]
+
+	rand_seed = pd["rand_seed"]
+	np.random.seed(rand_seed)
+	random.seed(rand_seed)
+	tweets_train, tweets_test = read_tweets()
+	pd[para_name] = min_val
+
+	output_file = open(io.output_dir+'plot-'+para_name+'.txt', 'w')
+	is_int = type(min_val)==int
+	if min_val>0:
+		multiplier = (float(max_val)/float(min_val))**(1.0/(point_num-1))
+	for i in range(point_num):
+		predictor = train(tweets_train, pd)
+		mrr, mr = QuantitativeEval(predictor).computeMRR(tweets_test, pd)
+		print para_name, pd[para_name], mrr
+		output_file.write(str(pd[para_name])+'\t')
+		output_file.write(str(mrr)+'\n')
+		if min_val>0:
+			pd[para_name] *= multiplier
+		else:
+			pd[para_name] += 1
+		if is_int:
+			pd[para_name] = int(pd[para_name])
+
+# ttp stands for train-persist-test
+def tpt_best_model(best_params):
+	pd = dict(paras.pd)
+	for para in best_params:
+		pd[para] = best_params[para]
+	rand_seed = pd["rand_seed"]
+	np.random.seed(rand_seed)
+	random.seed(rand_seed)
+	tweets_train, tweets_test = read_tweets()
+	print pd['dataset'], pd['predictor'], 
+	for predict_type in ['w','l','t']:
+		pd["predict_type"] = predict_type
+		predictor = train(tweets_train, pd)
+		# if predict_type=='w':
+		# 	pickle.dump(predictor,open(io.models_dir+str(pd['predictor'])+'.model','w'))
+		mrr, mr = QuantitativeEval(predictor).computeMRR(tweets_test, pd)
+		print mrr,
+	print 
 
 if __name__ == '__main__':
-	main(0, dict())
+	best_params = summarize.get_best_params()
+	if sys.argv[1]=="1":
+		tpt_best_model(best_params)
+	else:
+		parameter_study('dim',10,500, best_params)
+		parameter_study('negative',0,10, best_params)
+		parameter_study('alpha',0.001,0.1, best_params)
+		parameter_study('samples',1,100, best_params)
+		parameter_study('bandwidth_l',0.0015,0.02, best_params)
+		parameter_study('bandwidth_t',100.0,10000.0, best_params)
+		parameter_study('kernel_bandwidth_l',0.0001,1.0, best_params)
+		parameter_study('kernel_bandwidth_t',100.0,1000000.0, best_params)
+
+	# main(0, dict())
+
+	# tweets_train, tweets_test = read_tweets()
+	# output_file = open("training_tweet_ids",'w')
+	# for tweet in tweets_train:
+	# 	output_file.write(str(tweet.id)+'\n')
 
 	# pd = dict(paras.pd)
 

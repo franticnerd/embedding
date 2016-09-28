@@ -3,7 +3,6 @@ import random
 from sklearn.cluster import MeanShift
 from collections import defaultdict
 import time, datetime
-import cPickle as pickle
 from zutils.formula import listCosine
 import itertools
 import sys
@@ -14,6 +13,13 @@ from sklearn.feature_extraction import DictVectorizer
 from sklearn.decomposition import TruncatedSVD
 from sklearn.utils.extmath import randomized_svd
 from sklearn.neighbors import NearestNeighbors
+
+def convert_ts(ts):
+	# return (ts/60)%(60*24*7)
+	# return (ts/3600)%(24*7)
+	# return (ts/3600)%24
+	# return ts/3600
+	return (ts)%(3600*24*7)
 
 class TfidfPredictor:
 	def __init__(self, pd):
@@ -31,7 +37,7 @@ class TfidfPredictor:
 		et2net = {et:defaultdict(lambda : defaultdict(float)) for et in ['lt','lw','tw','tl','wl','wt']}
 		texts = [tweet.words for tweet in tweets]
 		locations = [[tweet.lat, tweet.lng] for tweet in tweets]
-		times  = [[self.pd["convert_ts"](tweet.ts)] for tweet in tweets]
+		times  = [[convert_ts(tweet.ts)] for tweet in tweets]
 		ls = self.lClus.fit(locations)
 		ts = self.tClus.fit(times)
 
@@ -59,7 +65,7 @@ class TfidfPredictor:
 	def predict(self, time, lat, lng, words):
 		nt2nodes, et2net = self.nt2nodes, self.et2net
 		location = [lat, lng]
-		time = [self.pd["convert_ts"](time)]
+		time = [convert_ts(time)]
 		l = self.lClus.predict(location)
 		t = self.tClus.predict(time)
 		lw = [ et2net['lw'][l][w] for w in words ]
@@ -87,7 +93,7 @@ class PmiPredictor:
 		et2net = {et:defaultdict(lambda : defaultdict(float)) for et in ['lt','lw','tw']}
 		texts = [tweet.words for tweet in tweets]
 		locations = [[tweet.lat, tweet.lng] for tweet in tweets]
-		times  = [[self.pd["convert_ts"](tweet.ts)] for tweet in tweets]
+		times  = [[convert_ts(tweet.ts)] for tweet in tweets]
 		ls = self.lClus.fit(locations)
 		ts = self.tClus.fit(times)
 
@@ -112,7 +118,7 @@ class PmiPredictor:
 	def predict(self, time, lat, lng, words):
 		nt2nodes, et2net = self.nt2nodes, self.et2net
 		location = [lat, lng]
-		time = [self.pd["convert_ts"](time)]
+		time = [convert_ts(time)]
 		l = self.lClus.predict(location)
 		t = self.tClus.predict(time)
 		lw = [ et2net['lw'][l][w] for w in words ]
@@ -139,7 +145,7 @@ class SvdPredictor:
 		nt2nodes = {nt:defaultdict(float) for nt in self.pd["ntList"]}
 		texts = [tweet.words for tweet in tweets]
 		locations = [[tweet.lat, tweet.lng] for tweet in tweets]
-		times  = [[self.pd["convert_ts"](tweet.ts)] for tweet in tweets]
+		times  = [[convert_ts(tweet.ts)] for tweet in tweets]
 		ls = self.lClus.fit(locations)
 		ts = self.tClus.fit(times)
 		maxDim = max(len(self.lClus.get_centers()), len(self.tClus.get_centers()))
@@ -170,7 +176,7 @@ class SvdPredictor:
 	def predict(self, time, lat, lng, words):
 		nt2nodes, et2net = self.nt2nodes, self.et2net
 		location = [lat, lng]
-		time = [self.pd["convert_ts"](time)]
+		time = [convert_ts(time)]
 		l = self.lClus.predict(location)
 		t = self.tClus.predict(time)
 		l, t = int(l), int(t)
@@ -204,7 +210,7 @@ class Gsm2vecPredictor:
 		nt2nodes = {nt:set() for nt in self.pd["ntList"]}
 		texts = [tweet.words for tweet in tweets]
 		locations = [[tweet.lat, tweet.lng] for tweet in tweets]
-		times  = [[self.pd["convert_ts"](tweet.ts)] for tweet in tweets]
+		times  = [[convert_ts(tweet.ts)] for tweet in tweets]
 		ls = self.lClus.fit(locations)
 		ts = self.tClus.fit(times)
 
@@ -236,7 +242,7 @@ class Gsm2vecPredictor:
 		et2net = {et:defaultdict(lambda : defaultdict(float)) for et in all_et}
 		texts = [tweet.words for tweet in tweets]
 		locations = [[tweet.lat, tweet.lng] for tweet in tweets]
-		times  = [[self.pd["convert_ts"](tweet.ts)] for tweet in tweets]
+		times  = [[convert_ts(tweet.ts)] for tweet in tweets]
 		ls = self.lClus.fit(locations)
 		ts = self.tClus.fit(times)
 
@@ -261,10 +267,10 @@ class Gsm2vecPredictor:
 					et2net['ww'][w2][w1] += 1
 
 		# encode_continuous_proximity
-		print "encoding_continuous_proximity"
+		# print "encoding_continuous_proximity"
 		self.encode_continuous_proximity("ll", self.lClus, et2net, nt2nodes)
 		self.encode_continuous_proximity("tt", self.tClus, et2net, nt2nodes)
-		print "encoded_continuous_proximity"
+		# print "encoded_continuous_proximity"
 
 		# for et in et2net:
 		# 	net = et2net[et]
@@ -288,7 +294,7 @@ class Gsm2vecPredictor:
 	def gen_spatial_feature(self, lat, lng):
 		nt2vecs = self.nt2vecs
 		location = [lat, lng]
-		if self.pd['version']==0 and self.pd["kernel_nb_num_l"]>1:
+		if self.pd['version']==0 and self.pd["kernel_nb_num_l"]>10:
 			l_vecs = [nt2vecs['l'][l]*weight for l, weight in self.lClus.tops(location) if l in nt2vecs['l']]
 			ls_vec = np.average(l_vecs, axis=0) if l_vecs else np.zeros(self.pd["dim"])
 		else:
@@ -298,8 +304,8 @@ class Gsm2vecPredictor:
 
 	def gen_temporal_feature(self, time):
 		nt2vecs = self.nt2vecs
-		time = [self.pd["convert_ts"](time)]
-		if self.pd['version']==0 and self.pd["kernel_nb_num_t"]>1:
+		time = [convert_ts(time)]
+		if self.pd['version']==0 and self.pd["kernel_nb_num_t"]>10:
 			t_vecs = [nt2vecs['t'][t]*weight for t, weight in self.tClus.tops(time) if t in nt2vecs['t']]
 			ts_vec = np.average(t_vecs, axis=0) if t_vecs else np.zeros(self.pd["dim"])
 		else:
@@ -373,7 +379,11 @@ class MeanshiftClus:
 
 	def tops(self, x):
 		[distances], [indices] = self.nbrs.kneighbors([x])
-		return [(str(index), self.pd["kernel"](distance,self.kernel_bandwidth)) for index, distance in zip(indices, distances)]
+		return [(str(index), self.kernel(distance,self.kernel_bandwidth)) for index, distance in zip(indices, distances)]
+
+	def kernel(self, u, h=1.0):
+		u /= h
+		return 0 if u>1 else math.e**(-u*u/2)
 
 class LGridClus:
 	def __init__(self, pd):
@@ -446,7 +456,7 @@ class Gsm2vec_line:
 
 	def write_line_input(self, nt2nodes, et2net):
 		for nt, nodes in nt2nodes.items():
-			print nt, len(nodes)
+			# print nt, len(nodes)
 			node_file = open(self.pd["line_dir"]+"node-"+nt+"-"+self.pd["job_id"]+".txt", 'w')
 			for node in nodes:
 				node_file.write(node+"\n")

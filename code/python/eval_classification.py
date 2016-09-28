@@ -7,7 +7,10 @@ import numpy as np
 import sys
 import paras
 import cPickle as pickle
+import evaluation
+import summarize
 
+pd = dict(paras.pd)
 
 def load_train_test(io):
     train_db = DB(io.clean_text_file, io.dns, io.port, io.db, 'train', io.index)
@@ -56,10 +59,15 @@ def eval(model, features, labels):
     print(metrics.classification_report(expected, predicted))
     return accuracy_score(expected, predicted)
 
-
 def main(io):
     train_tweets, test_tweets = load_train_test(io)
-    embedding_model = pickle.load(open(io.models_dir+'gsm2vecPredictor.model','r'))
+
+    # embedding_model = pickle.load(open(io.models_dir+'gsm2vecPredictor.model','r'))
+    best_params = summarize.get_best_params()
+    for para in best_params:
+        pd[para] = best_params[para]
+    embedding_model = evaluation.train(train_tweets,pd)
+
     label_map = gen_label_mapping(train_tweets, test_tweets)
     print label_map
     f_train, l_train = format_data_set(train_tweets, embedding_model, label_map)
@@ -70,7 +78,6 @@ def main(io):
 
 
 if __name__ == '__main__':
-    pd = dict(paras.pd)
     # para_file = sys.argv[1]
     io = IO("../run/4sq.yaml")
     print main(io)
