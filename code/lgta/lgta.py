@@ -75,12 +75,23 @@ class LGTA:
         return ret
 
     def get_topic_words_prob(self, topic_id, words):
-        ret = 1.0
+        ret = []
         word_dist = self.pwz[topic_id]
         for word in words:
-            word_id = self.id_to_word[word]
-            ret *= word_dist[word_id]
-        return ret
+            if word in self.id_to_word:
+                word_id = self.id_to_word[word]
+                ret.append(word_dist[word_id])
+            else:
+                ret.append(0)
+        return np.mean(ret)
+
+    # def get_topic_words_prob(self, topic_id, words):
+    #     ret = 1.0
+    #     word_dist = self.pwz[topic_id]
+    #     for word in words:
+    #         word_id = self.id_to_word[word]
+    #         ret *= word_dist[word_id]
+    #     return ret
 
     def calc_probability(self, lat, lng, words):
         ret = 0
@@ -91,6 +102,23 @@ class LGTA:
                 * self.get_regional_topic_prob(i, words)
         return ret
 
+
+    def gen_spatial_feature(self, lat, lng):
+        return [lat, lng]
+
+    def gen_temporal_feature(self, ts):
+        return [ts]
+
+    def gen_textual_feature(self, words):
+        ret = []
+        n_topic = len(self.pzr[0])
+        for topic_id in xrange(n_topic):
+            ret.append(self.get_topic_words_prob(topic_id, words))
+        return ret
+
+
+
+
 if __name__ == '__main__':
     # for 4sq data set
     # lgta = LGTA('/Users/chao/Dropbox/Research/embedding/data/4sq/lgta/')
@@ -99,5 +127,8 @@ if __name__ == '__main__':
     # for la data set
     lgta = LGTA('/Users/chao/Dropbox/Research/embedding/data/la/lgta/')
     lgta.print_top_words()
-    print lgta.calc_probability(33.9416, -118.4085, ['lax', 'day'])
+    print lgta.calc_probability(33.9416, -118.4085, ['lax', 'jfk'])
+    print lgta.gen_spatial_feature(33.9416, -118.4085)
+    print lgta.gen_temporal_feature(123.9)
+    print lgta.gen_textual_feature(['lax', 'jfk'])
 
