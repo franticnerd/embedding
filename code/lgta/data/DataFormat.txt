@@ -1,0 +1,8 @@
+X_image_location.txt: location for each image (line no. is image_id)
+longitude(SPACE)latitude
+
+X_image_tags.txt: tags for each image
+image_id(SPACE)tag_id(SPACE)frequency
+
+X_tag_freq.txt: tags (line no. is tag_id)
+tag(SPACE)frequency
