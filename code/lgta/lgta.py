@@ -74,24 +74,21 @@ class LGTA:
             ret += topic_priors[i] * self.get_topic_words_prob(i, words)
         return ret
 
-    # def get_topic_words_prob(self, topic_id, words):
-    #     ret = []
-    #     word_dist = self.pwz[topic_id]
-    #     for word in words:
-    #         if word in self.id_to_word:
-    #             word_id = self.id_to_word[word]
-    #             ret.append(word_dist[word_id])
-    #         else:
-    #             ret.append(0)
-    #     return np.mean(ret)
-
     def get_topic_words_prob(self, topic_id, words):
-        ret = 1.0
+        ret = []
         word_dist = self.pwz[topic_id]
         for word in words:
             word_id = self.id_to_word[word]
-            ret *= word_dist[word_id]
-        return ret ** (1.0 / len(words))
+            ret.append(word_dist[word_id])
+        return max(ret)
+
+    # def get_topic_words_prob(self, topic_id, words):
+    #     ret = 1.0
+    #     word_dist = self.pwz[topic_id]
+    #     for word in words:
+    #         word_id = self.id_to_word[word]
+    #         ret *= word_dist[word_id]
+    #     return ret ** (1.0 / len(words))
 
     def calc_probability(self, lat, lng, words):
         ret = 0
@@ -127,7 +124,7 @@ if __name__ == '__main__':
     # for la data set
     lgta = LGTA('/Users/chao/Dropbox/Research/embedding/data/la/lgta/')
     lgta.print_top_words()
-    print lgta.calc_probability(33.9416, -118.4085, ['airport', 'universal'])
+    print lgta.calc_probability(33.9416, -118.4085, ['lax', 'universal'])
     print lgta.gen_spatial_feature(33.9416, -118.4085)
     print lgta.gen_temporal_feature(123.9)
     print lgta.gen_textual_feature(['lax', 'jfk'])
