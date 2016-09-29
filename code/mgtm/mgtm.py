@@ -80,22 +80,22 @@ class MGTM:
         return ret
 
 
-    def get_topic_words_prob(self, topic_id, words):
-        ret = []
-        word_dist = self.pwz[topic_id]
-        for word in words:
-            word_id = self.word_to_id[word]
-            ret.append(word_dist[word_id])
-        return max(ret)
-
-
     # def get_topic_words_prob(self, topic_id, words):
-    #     ret = 1.0
+    #     ret = []
     #     word_dist = self.pwz[topic_id]
     #     for word in words:
     #         word_id = self.word_to_id[word]
-    #         ret *= word_dist[word_id]
-    #     return ret ** (1.0 / len(words))
+    #         ret.append(word_dist[word_id])
+    #     return max(ret)
+
+
+    def get_topic_words_prob(self, topic_id, words):
+        ret = 1.0
+        word_dist = self.pwz[topic_id]
+        for word in words:
+            word_id = self.word_to_id[word]
+            ret *= word_dist[word_id]
+        return ret ** (1.0 / len(words))
 
     def calc_probability(self, lat, lng, words):
         region_id = int(self.get_closest_region(lat, lng))
