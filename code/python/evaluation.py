@@ -60,12 +60,12 @@ class QuantitativeEval:
 				
 
 		mrr,mr = sum(rranks)/len(rranks),sum(ranks)/len(ranks)
-		evalFile = open(io.eval_file,'a')
-		evalFile.write("time for testing: "+str(time.time()-start_time)+"\n")
-		evalFile.write(str(datetime.datetime.now())+"\n")
-		evalFile.write(paras.pd2string(pd))
-		evalFile.write("node nums: "+str({nt:len(self.predictor.nt2nodes[nt]) for nt in pd["ntList"]})+"\n")
-		evalFile.write("mrr,mr: "+str((mrr,mr))+"\n\n")
+		# evalFile = open(io.eval_file,'a')
+		# evalFile.write("time for testing: "+str(time.time()-start_time)+"\n")
+		# evalFile.write(str(datetime.datetime.now())+"\n")
+		# evalFile.write(paras.pd2string(pd))
+		# evalFile.write("node nums: "+str({nt:len(self.predictor.nt2nodes[nt]) for nt in pd["ntList"]})+"\n")
+		# evalFile.write("mrr,mr: "+str((mrr,mr))+"\n\n")
 		return round(mrr,4), round(mr,4)
 
 
@@ -105,11 +105,13 @@ class QualitativeEval:
 		self.printAndScribe(directory,ws,ts,ls)
 
 def train(tweets,pd):
+	voca = get_voca(tweets)
 	start_time = time.time()
 	predictor = pd["predictor"](pd)
-	predictor.fit(tweets, get_voca(tweets)) 
-	evalFile = open(io.eval_file,'a')
-	evalFile.write("time for training: "+str(time.time()-start_time)+"\n")
+	predictor.fit(tweets, voca) 
+	print pd['dataset'], pd['predictor'], time.time()-start_time
+	# evalFile = open(io.eval_file,'a')
+	# evalFile.write("time for training: "+str(time.time()-start_time)+"\n")
 	return predictor
 
 def get_voca(tweets):
@@ -157,11 +159,24 @@ def main(job_id, params):
 	
 	tweets_train, tweets_test = read_tweets()
 	predictor = train(tweets_train, pd)
+	start_time = time.time()
 	mrr, mr = QuantitativeEval(predictor).computeMRR(tweets_test, pd)
 	print "mr:", mr
 	print "mrr:", mrr
 	print "time:", round(time.time()-start_time)
 	return -mrr
+
+def efficiency_study(params):
+	pd = dict(paras.pd)
+	for para in params:
+		pd[para] = params[para]
+
+	rand_seed = pd["rand_seed"]
+	np.random.seed(rand_seed)
+	random.seed(rand_seed)
+	
+	tweets_train, tweets_test = read_tweets()
+	predictor = train(tweets_train, pd)
 
 def parameter_study(para_name, min_val, max_val, params, point_num=10):
 	pd = dict(paras.pd)
@@ -185,7 +200,7 @@ def parameter_study(para_name, min_val, max_val, params, point_num=10):
 		output_file.write(str(pd[para_name])+'\t')
 		output_file.write(str(mrr)+'\n')
 		if min_val>0:
-			pd[para_name] *= multiplier
+			pd[para_name] = min_val*(multiplier**(i+1))
 		else:
 			pd[para_name] += 1
 		if is_int:
@@ -200,8 +215,9 @@ def tpt_best_model(best_params):
 	np.random.seed(rand_seed)
 	random.seed(rand_seed)
 	tweets_train, tweets_test = read_tweets()
+	tweets_test = tweets_test[:2000]
 	print pd['dataset'], pd['predictor'], 
-	for predict_type in ['w','l','t']:
+	for predict_type in ['w','l']:
 		pd["predict_type"] = predict_type
 		predictor = train(tweets_train, pd)
 		# if predict_type=='w':
@@ -210,19 +226,29 @@ def tpt_best_model(best_params):
 		print mrr,
 	print 
 
+
 if __name__ == '__main__':
-	best_params = summarize.get_best_params()
 	if sys.argv[1]=="1":
+		# best_params = summarize.get_best_params()
+		best_params = dict()
 		tpt_best_model(best_params)
+	elif sys.argv[1]=="parameter":
+		best_params = summarize.get_best_params()
+		parameter_study('data_size', paras.pd['data_size']*0.0001, paras.pd['data_size'], best_params)
+		# parameter_study('dim',10,500, best_params)
+		# parameter_study('negative',0,10, best_params)
+		# parameter_study('alpha',0.001,0.1, best_params)
+		# parameter_study('samples',1,100, best_params)
+		# parameter_study('bandwidth_l',0.0015,0.02, best_params)
+		# parameter_study('bandwidth_t',100.0,10000.0, best_params)
+		# parameter_study('kernel_bandwidth_l',0.0001,1.0, best_params)
+		# parameter_study('kernel_bandwidth_t',10.0,1000000.0, best_params)
+	elif sys.argv[1]=="efficiency":
+		best_params = summarize.get_best_params()
+		efficiency_study(best_params)
+	elif sys.argv[1]=="qualitative":
 	else:
-		parameter_study('dim',10,500, best_params)
-		parameter_study('negative',0,10, best_params)
-		parameter_study('alpha',0.001,0.1, best_params)
-		parameter_study('samples',1,100, best_params)
-		parameter_study('bandwidth_l',0.0015,0.02, best_params)
-		parameter_study('bandwidth_t',100.0,10000.0, best_params)
-		parameter_study('kernel_bandwidth_l',0.0001,1.0, best_params)
-		parameter_study('kernel_bandwidth_t',100.0,1000000.0, best_params)
+		main(0, dict())
 
 	# main(0, dict())
 

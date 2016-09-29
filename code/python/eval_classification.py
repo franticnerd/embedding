@@ -9,6 +9,8 @@ import paras
 import cPickle as pickle
 import evaluation
 import summarize
+import time
+from scipy.sparse import csr_matrix
 
 pd = dict(paras.pd)
 
@@ -38,7 +40,7 @@ def format_data_set(tweets, embedding_mode, label_map):
     for tweet in tweets:
         features.append(gen_feature(tweet, embedding_mode))
         labels.append(label_map[tweet.text])
-    return features, labels
+    return csr_matrix(features), labels
 
 
 def gen_feature(tweet, embedding_model):
@@ -60,20 +62,26 @@ def eval(model, features, labels):
     return accuracy_score(expected, predicted)
 
 def main(io):
+    start_time = time.time()
     train_tweets, test_tweets = load_train_test(io)
+    print time.time()-start_time, "loading done!"
 
     # embedding_model = pickle.load(open(io.models_dir+'gsm2vecPredictor.model','r'))
     best_params = summarize.get_best_params()
     for para in best_params:
         pd[para] = best_params[para]
     embedding_model = evaluation.train(train_tweets,pd)
+    print time.time()-start_time, "embedding_model training done!"
 
     label_map = gen_label_mapping(train_tweets, test_tweets)
     print label_map
     f_train, l_train = format_data_set(train_tweets, embedding_model, label_map)
     f_test, l_test = format_data_set(test_tweets, embedding_model, label_map)
+    print time.time()-start_time, "format done!", f_train.shape, f_train.nnz
     model = train(f_train, l_train)
+    print time.time()-start_time, "training done!"
     accuracy = eval(model, f_test, l_test)
+    print time.time()-start_time, "testing done!"
     return accuracy
 
 

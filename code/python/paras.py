@@ -34,14 +34,14 @@ pd['predictor'] = Gsm2vecPredictor
 # pd['predictor'] = PmiPredictor
 # pd['predictor'] = SvdPredictor
 # pd['predictor'] = TfidfPredictor
-pd['gsm2vec'] = Gsm2vec_line
+# pd['gsm2vec'] = Gsm2vec_line
 # pd['gsm2vec'] = Gsm2vec
-# pd['gsm2vec'] = Gsm2vec_relation
+pd['gsm2vec'] = Gsm2vec_relation
 pd['lClus'] = LMeanshiftClus
 # pd['tClus'] = TVoidClus
 pd['tClus'] = TMeanshiftClus
 
-pd['kernel_nb_num_l'] = 10
+pd['kernel_nb_num_l'] = 50
 pd['kernel_nb_num_t'] = 10
 pd['bandwidth_l'] = 0.01
 pd['bandwidth_t'] = 1000.0
