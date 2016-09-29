@@ -92,10 +92,11 @@ class MGTM:
     def get_topic_words_prob(self, topic_id, words):
         ret = 1.0
         word_dist = self.pwz[topic_id]
+        words = [w for w in words if w in self.word_to_id]
         for word in words:
             word_id = self.word_to_id[word]
             ret *= word_dist[word_id]
-        return ret ** (1.0 / len(words))
+        return 0 if len(words) == 0 else ret ** (1.0 / len(words))
 
     def calc_probability(self, lat, lng, words):
         region_id = int(self.get_closest_region(lat, lng))
@@ -108,13 +109,13 @@ class MGTM:
     def gen_temporal_feature(self, ts):
         return [ts]
 
+
     def gen_textual_feature(self, words):
         ret = []
         n_topic = len(self.pzr[0])
         for topic_id in xrange(n_topic):
             ret.append(self.get_topic_words_prob(topic_id, words))
-        return ret
-
+        return np.array(ret) / sum(ret)
 
 
 if __name__ == '__main__':
@@ -125,4 +126,12 @@ if __name__ == '__main__':
     print mgtm.calc_probability(33.9416, -118.4085, ['lax'])
     print mgtm.gen_spatial_feature(33.9416, -118.4085)
     print mgtm.gen_temporal_feature(123.9)
-    print mgtm.gen_textual_feature(['lax', 'jfk'])
+    text_vector = mgtm.gen_textual_feature(['lax', 'airport'])
+    print text_vector
+    index = text_vector.argsort()[-10:][::-1]
+    for j in index:
+        print 'topic', j
+        a = np.array(mgtm.pwz[j])
+        ind = a.argsort()[-20:][::-1]
+        for i, f in zip(ind, a[ind]):
+            print '\t', mgtm.id_to_word[i], f

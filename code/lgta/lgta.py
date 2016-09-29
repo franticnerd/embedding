@@ -20,15 +20,15 @@ class LGTA:
 
     def load_word_dict(self):
         word_freq_file = self.input_dir + 'word_map.txt'
-        self.word_dict = {}
         self.id_to_word = {}
+        self.word_to_id = {}
         with open(word_freq_file, 'r') as fin:
             word_id =  0
             for line in fin:
                 items = line.strip().split()
                 word = items[0]
-                self.word_dict[word_id] = word
-                self.id_to_word[word] = word_id
+                self.id_to_word[word_id] = word
+                self.word_to_id[word] = word_id
                 word_id += 1
 
     # priors of regions
@@ -58,7 +58,7 @@ class LGTA:
             print 'topic', cnt
             ind = a.argsort()[-10:][::-1]
             for i, f in zip(ind, a[ind]):
-                print '\t', self.word_dict[i], f
+                print '\t', self.id_to_word[i], f
             cnt += 1
 
 
@@ -74,21 +74,15 @@ class LGTA:
             ret += topic_priors[i] * self.get_topic_words_prob(i, words)
         return ret
 
-    # def get_topic_words_prob(self, topic_id, words):
-    #     ret = []
-    #     word_dist = self.pwz[topic_id]
-    #     for word in words:
-    #         word_id = self.id_to_word[word]
-    #         ret.append(word_dist[word_id])
-    #     return max(ret)
 
     def get_topic_words_prob(self, topic_id, words):
         ret = 1.0
         word_dist = self.pwz[topic_id]
+        words = [w for w in words if w in self.word_to_id]
         for word in words:
-            word_id = self.id_to_word[word]
+            word_id = self.word_to_id[word]
             ret *= word_dist[word_id]
-        return ret ** (1.0 / len(words))
+        return 0 if len(words) == 0 else ret ** (1.0 / len(words))
 
     def calc_probability(self, lat, lng, words):
         ret = 0
@@ -111,9 +105,7 @@ class LGTA:
         n_topic = len(self.pzr[0])
         for topic_id in xrange(n_topic):
             ret.append(self.get_topic_words_prob(topic_id, words))
-        return ret
-
-
+        return np.array(ret) / sum(ret)
 
 
 if __name__ == '__main__':
@@ -123,9 +115,17 @@ if __name__ == '__main__':
     # print lgta.calc_probability(40.6413, -73.7781, ['airport'])
     # for la data set
     lgta = LGTA('/Users/chao/Dropbox/Research/embedding/data/la/lgta/')
-    lgta.print_top_words()
-    print lgta.calc_probability(33.9416, -118.4085, ['lax', 'universal'])
+    # lgta.print_top_words()
+    print lgta.calc_probability(33.9416, -118.4085, ['lax'])
     print lgta.gen_spatial_feature(33.9416, -118.4085)
     print lgta.gen_temporal_feature(123.9)
-    print lgta.gen_textual_feature(['lax', 'jfk'])
-
+    text_vector = lgta.gen_textual_feature(['universal', 'studio'])
+    print text_vector
+    index = text_vector.argsort()[-20:][::-1]
+    for j in index:
+        print 'topic', j
+        a = lgta.pwz[j]
+        print a, type(a)
+        ind = a.argsort()[-20:][::-1]
+        for i, f in zip(ind, a[ind]):
+            print '\t', lgta.id_to_word[i], f
