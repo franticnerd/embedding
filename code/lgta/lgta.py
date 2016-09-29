@@ -74,21 +74,21 @@ class LGTA:
             ret += topic_priors[i] * self.get_topic_words_prob(i, words)
         return ret
 
-    def get_topic_words_prob(self, topic_id, words):
-        ret = []
-        word_dist = self.pwz[topic_id]
-        for word in words:
-            word_id = self.id_to_word[word]
-            ret.append(word_dist[word_id])
-        return max(ret)
-
     # def get_topic_words_prob(self, topic_id, words):
-    #     ret = 1.0
+    #     ret = []
     #     word_dist = self.pwz[topic_id]
     #     for word in words:
     #         word_id = self.id_to_word[word]
-    #         ret *= word_dist[word_id]
-    #     return ret ** (1.0 / len(words))
+    #         ret.append(word_dist[word_id])
+    #     return max(ret)
+
+    def get_topic_words_prob(self, topic_id, words):
+        ret = 1.0
+        word_dist = self.pwz[topic_id]
+        for word in words:
+            word_id = self.id_to_word[word]
+            ret *= word_dist[word_id]
+        return ret ** (1.0 / len(words))
 
     def calc_probability(self, lat, lng, words):
         ret = 0
