@@ -2,6 +2,7 @@ from zutils.twitter.tweet_database import TweetDatabase as DB
 from io_utils import IO
 from sklearn import metrics
 from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 import numpy as np
 import sys
@@ -46,7 +47,8 @@ def gen_feature(tweet, embedding_model):
 
 
 def train(features, labels):
-    model = LogisticRegression()
+    # model = LogisticRegression()
+    model = RandomForestClassifier()
     model.fit(features, labels)
     return model
 
