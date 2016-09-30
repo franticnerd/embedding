@@ -8,10 +8,12 @@ import numpy as np
 import sys
 import paras
 import cPickle as pickle
+<<<<<<< HEAD
 import evaluation
 import summarize
 import time
 from scipy.sparse import csr_matrix
+from sklearn.preprocessing import StandardScaler
 
 pd = dict(paras.pd)
 
@@ -41,8 +43,8 @@ def format_data_set(tweets, embedding_mode, label_map):
     for tweet in tweets:
         features.append(gen_feature(tweet, embedding_mode))
         labels.append(label_map[tweet.text])
-    # return csr_matrix(features), labels
-    return features, labels
+    return csr_matrix(features), labels
+    # return features, labels
 
 
 def gen_feature(tweet, embedding_model):
@@ -53,9 +55,7 @@ def gen_feature(tweet, embedding_model):
 
 
 def train(features, labels):
-    # model = LogisticRegression()
-    # model = RandomForestClassifier()
-    model = GradientBoostingClassifier()
+    model = LogisticRegression()
     model.fit(features, labels)
     return model
 
@@ -81,8 +81,12 @@ def main(io):
     print label_map
     f_train, l_train = format_data_set(train_tweets, embedding_model, label_map)
     f_test, l_test = format_data_set(test_tweets, embedding_model, label_map)
-    print time.time()-start_time, "format done!"
-    # print time.time()-start_time, "format done!", f_train.shape, f_train.nnz
+    # print time.time()-start_time, "format done!"
+    print time.time()-start_time, "format done!", f_train.shape, f_train.nnz
+    # feature scaling
+    standard_scaler = StandardScaler()
+    f_train = standard_scaler.fit_transform(f_train)
+    f_test = standard_scaler.transform(f_test)
     model = train(f_train, l_train)
     print time.time()-start_time, "training done!"
     accuracy = eval(model, f_test, l_test)
