@@ -77,30 +77,35 @@ class QualitativeEval:
 		if not os.path.isdir(directory):
 			os.mkdir(directory)
 		print ws
+		t_centers = self.predictor.tClus.get_centers()
+
+		ts = [time.strftime('%A:%H:%M:%S', time.gmtime(t_centers[int(t)][0])) for t in ts]
 		print ts
 		open(directory+"words.txt",'w').write(str(ws)+"\n")
 		open(directory+"times.txt",'w').write(str(ts)+"\n")
 		map_osm = None
-		centers = self.predictor.lClus.get_centers()
+		l_centers = self.predictor.lClus.get_centers()
 		for rank,l in enumerate(ls):
-			center = centers[int(l)]
+			l_center = l_centers[int(l)]
 			if not map_osm:
-				map_osm = folium.Map(location=center)
-			folium.CircleMarker(location=center, radius=200).add_to(map_osm)
+				map_osm = folium.Map(location=l_center)
+			folium.CircleMarker(location=l_center, radius=200).add_to(map_osm)
 		folium.LatLngPopup().add_to(map_osm)
 		map_osm.save(directory+'/locations.html')
 
 	def getNbs1(self,query):
+		if type(query)==str and query.lower() not in self.predictor.nt2vecs['w']:
+			return
 		directory = io.output_dir+"case_study/"+str(query)+"/"
 		ws = zip(*self.predictor.get_nbs1(query,'w'))[0]
-		ts = zip(*self.predictor.get_nbs1(query,'t',24))[0]
-		ls = zip(*self.predictor.get_nbs1(query,'l',20))[0]
+		ts = zip(*self.predictor.get_nbs1(query,'t'))[0]
+		ls = zip(*self.predictor.get_nbs1(query,'l'))[0]
 		self.printAndScribe(directory,ws,ts,ls)
 
 	def getNbs2(self,query1,query2,func=lambda a,b:a+b):
 		ws = zip(*self.predictor.get_nbs2(query1,query2,func,'w'))[0]
-		ts = zip(*self.predictor.get_nbs2(query1,query2,func,'t',24))[0]
-		ls = zip(*self.predictor.get_nbs2(query1,query2,func,'l',20))[0]
+		ts = zip(*self.predictor.get_nbs2(query1,query2,func,'t'))[0]
+		ls = zip(*self.predictor.get_nbs2(query1,query2,func,'l'))[0]
 		directory = io.output_dir+"case_study/"+str(query1)+"-"+str(query2)+"/"
 		self.printAndScribe(directory,ws,ts,ls)
 
@@ -215,9 +220,10 @@ def tpt_best_model(best_params):
 	np.random.seed(rand_seed)
 	random.seed(rand_seed)
 	tweets_train, tweets_test = read_tweets()
-	tweets_test = tweets_test[:2000]
+	if pd['predictor'] in [LgtaPredictor, MgtmPredictor]:
+		tweets_test = tweets_test[:1000]
 	print pd['dataset'], pd['predictor'], 
-	for predict_type in ['w','l']:
+	for predict_type in ['w','l','t']:
 		pd["predict_type"] = predict_type
 		predictor = train(tweets_train, pd)
 		# if predict_type=='w':
@@ -226,15 +232,64 @@ def tpt_best_model(best_params):
 		print mrr,
 	print 
 
+def datasize_study(min_val, max_val, params, point_num=10):
+	pd = dict(paras.pd)
+	for para in params:
+		pd[para] = params[para]
+
+	rand_seed = pd["rand_seed"]
+	np.random.seed(rand_seed)
+	random.seed(rand_seed)
+	tweets_train, tweets_test = read_tweets()
+
+	output_file = open(io.output_dir+'plot-'+'training_data_percentage'+'.txt', 'w')
+	multiplier = (float(max_val)/float(min_val))**(1.0/(point_num-1))
+	para_val = min_val
+	for i in range(point_num):
+		training_size = int(len(tweets_train)*para_val)
+		predictor = train(tweets_train[:training_size], pd)
+		mrr, mr = QuantitativeEval(predictor).computeMRR(tweets_test, pd)
+		print para_val, mrr
+		output_file.write(str(para_val)+'\t')
+		output_file.write(str(mrr)+'\n')
+		para_val *= multiplier
+
+def test_random_training_set(best_params, ratio=1):
+	pd = dict(paras.pd)
+	for para in best_params:
+		pd[para] = best_params[para]
+	rand_seed = pd["rand_seed"]
+	np.random.seed(rand_seed)
+	random.seed(rand_seed)
+	tweets_train, tweets_test = read_tweets()
+	test_set = set(tweets_test)
+	train_size = len(tweets_train)*ratio
+	db = DB(io.clean_text_file, io.dns, io.port, io.db, io.tweet, io.index)
+	tweets_train = [tweet for tweet in db.get_tweets_from_db() if tweet not in test_set]
+	random.shuffle(tweets_train)
+	word2freq = defaultdict(int)
+	for tweet in tweets_train:
+		for word in tweet.words:
+			word2freq[word] += 1
+	word_and_freq = word2freq.items()
+	word_and_freq.sort(reverse=True, key=lambda tup:tup[1])
+	voca = set(zip(*word_and_freq[:15000])[0])
+	predictor = pd["predictor"](pd)
+	print "training set ready!", "train_size:", train_size
+	predictor.fit(tweets_train, voca) 
+	mrr, mr = QuantitativeEval(predictor).computeMRR(tweets_test, pd)
+	print train_size, mrr
 
 if __name__ == '__main__':
 	if sys.argv[1]=="1":
-		# best_params = summarize.get_best_params()
-		best_params = dict()
+		if paras.pd['predictor'] in [LgtaPredictor, MgtmPredictor]:
+			best_params = dict()
+		else:
+			best_params = summarize.get_best_params()
 		tpt_best_model(best_params)
 	elif sys.argv[1]=="parameter":
 		best_params = summarize.get_best_params()
-		parameter_study('data_size', paras.pd['data_size']*0.0001, paras.pd['data_size'], best_params)
+		datasize_study(0.0001, 1, best_params)
 		# parameter_study('dim',10,500, best_params)
 		# parameter_study('negative',0,10, best_params)
 		# parameter_study('alpha',0.001,0.1, best_params)
@@ -246,7 +301,37 @@ if __name__ == '__main__':
 	elif sys.argv[1]=="efficiency":
 		best_params = summarize.get_best_params()
 		efficiency_study(best_params)
+	elif sys.argv[1]=="pipeline1":
+		best_params = summarize.get_best_params()
+		test_random_training_set(best_params, 1)
+		test_random_training_set(best_params, 3)
 	elif sys.argv[1]=="qualitative":
+		best_params = summarize.get_best_params()
+		pd = dict(paras.pd)
+		for para in best_params:
+			pd[para] = best_params[para]
+		pd['bandwidth_t'] = 1800
+		rand_seed = pd["rand_seed"]
+		np.random.seed(rand_seed)
+		random.seed(rand_seed)
+		tweets_train, tweets_test = read_tweets()
+		predictor = train(tweets_train, pd)
+		QualitativeEval(predictor).getNbs1('lunch')
+		QualitativeEval(predictor).getNbs1('airport')
+		QualitativeEval(predictor).getNbs1('beach')
+		QualitativeEval(predictor).getNbs1('dodger')
+		QualitativeEval(predictor).getNbs1('food')
+		QualitativeEval(predictor).getNbs1('sleep')
+		QualitativeEval(predictor).getNbs1('movie')
+		QualitativeEval(predictor).getNbs1('hollywood')
+		QualitativeEval(predictor).getNbs1('shopping')
+		QualitativeEval(predictor).getNbs1('basketball')
+		QualitativeEval(predictor).getNbs1('ucla')
+		QualitativeEval(predictor).getNbs1('university')
+		QualitativeEval(predictor).getNbs1('universal studio')
+		QualitativeEval(predictor).getNbs1('chinese')
+		QualitativeEval(predictor).getNbs1([33.9424, -118.4137])
+		QualitativeEval(predictor).getNbs1([34.008, -118.4961])
 	else:
 		main(0, dict())
 

@@ -41,7 +41,7 @@ pd['lClus'] = LMeanshiftClus
 # pd['tClus'] = TVoidClus
 pd['tClus'] = TMeanshiftClus
 
-pd['kernel_nb_num_l'] = 50
+pd['kernel_nb_num_l'] = 10
 pd['kernel_nb_num_t'] = 10
 pd['bandwidth_l'] = 0.01
 pd['bandwidth_t'] = 1000.0

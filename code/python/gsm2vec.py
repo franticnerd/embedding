@@ -381,8 +381,8 @@ class Gsm2vecPredictor:
 
 		# encode_continuous_proximity
 		# print "encoding_continuous_proximity"
-		self.encode_continuous_proximity("ll", self.lClus, et2net, nt2nodes)
-		self.encode_continuous_proximity("tt", self.tClus, et2net, nt2nodes)
+		# self.encode_continuous_proximity("ll", self.lClus, et2net, nt2nodes)
+		# self.encode_continuous_proximity("tt", self.tClus, et2net, nt2nodes)
 		print 'encode_continuous_proximity_done:', cur_time()-self.start_time,
 		# print "encoded_continuous_proximity"
 
@@ -408,7 +408,7 @@ class Gsm2vecPredictor:
 	def gen_spatial_feature(self, lat, lng):
 		nt2vecs = self.nt2vecs
 		location = [lat, lng]
-		if self.pd['version']==0 and self.pd["kernel_nb_num_l"]>1:
+		if self.pd['version']==0 and self.pd["kernel_nb_num_l"]>10:
 			l_vecs = [nt2vecs['l'][l]*weight for l, weight in self.lClus.tops(location) if l in nt2vecs['l']]
 			ls_vec = np.average(l_vecs, axis=0) if l_vecs else np.zeros(self.pd["dim"])
 		else:
@@ -419,7 +419,7 @@ class Gsm2vecPredictor:
 	def gen_temporal_feature(self, time):
 		nt2vecs = self.nt2vecs
 		time = [convert_ts(time)]
-		if self.pd['version']==0 and self.pd["kernel_nb_num_t"]>1:
+		if self.pd['version']==0 and self.pd["kernel_nb_num_t"]>10:
 			t_vecs = [nt2vecs['t'][t]*weight for t, weight in self.tClus.tops(time) if t in nt2vecs['t']]
 			ts_vec = np.average(t_vecs, axis=0) if t_vecs else np.zeros(self.pd["dim"])
 		else:
@@ -441,7 +441,7 @@ class Gsm2vecPredictor:
 		return round(score, 6)
 
 	def get_vec(self, query):
-		nt2vecs = self.gsm2vec.nt2vecs
+		nt2vecs = self.nt2vecs
 		if isinstance(query, str):
 			return nt2vecs['w'][query.lower()]
 		elif isinstance(query, list):
@@ -451,7 +451,7 @@ class Gsm2vecPredictor:
 
 	def get_nbs1(self, query, nb_nt, neighbor_num=20):
 		vec_query = self.get_vec(query)
-		candidates = [(nb, listCosine(vec_query, vec_nb)) for nb, vec_nb in self.gsm2vec.nt2vecs[nb_nt].items()]
+		candidates = [(nb, listCosine(vec_query, vec_nb)) for nb, vec_nb in self.nt2vecs[nb_nt].items()]
 		candidates.sort(key=lambda tup:tup[1], reverse=True)
 		return candidates[:neighbor_num]
 
@@ -459,7 +459,7 @@ class Gsm2vecPredictor:
 		vec_query1 = self.get_vec(query1)
 		vec_query2 = self.get_vec(query2)
 		candidates = [(nb, func(listCosine(vec_query1, vec_nb), listCosine(vec_query2, vec_nb))) \
-			for nb, vec_nb in self.gsm2vec.nt2vecs[nb_nt].items()]
+			for nb, vec_nb in self.nt2vecs[nb_nt].items()]
 		candidates.sort(key=lambda tup:tup[1], reverse=True)
 		return candidates[:neighbor_num]
 
