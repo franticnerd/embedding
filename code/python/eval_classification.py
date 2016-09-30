@@ -2,12 +2,12 @@ from zutils.twitter.tweet_database import TweetDatabase as DB
 from io_utils import IO
 from sklearn import metrics
 from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 import numpy as np
 import sys
 import paras
 import cPickle as pickle
+from sklearn.preprocessing import StandardScaler
 
 
 def load_train_test(io):
@@ -48,7 +48,7 @@ def gen_feature(tweet, embedding_model):
 
 def train(features, labels):
     # model = LogisticRegression()
-    model = RandomForestClassifier()
+    model = LogisticRegression()
     model.fit(features, labels)
     return model
 
@@ -66,6 +66,10 @@ def main(io):
     print label_map
     f_train, l_train = format_data_set(train_tweets, embedding_model, label_map)
     f_test, l_test = format_data_set(test_tweets, embedding_model, label_map)
+    # feature scaling
+    standard_scaler = StandardScaler()
+    f_train = standard_scaler.fit_transform(f_train)
+    f_test = standard_scaler.transform(f_test)
     model = train(f_train, l_train)
     accuracy = eval(model, f_test, l_test)
     return accuracy
