@@ -672,8 +672,8 @@ class Gsm2vec:
 		pd = self.pd
 		sample_size = int(pd["samples"]*1000000)
 		# initialization not specified in the paper, got wrong at the beginning
-		self.nt2vecs = {nt:{node:(np.random.rand(pd["dim"])-0.5)/pd["dim"] for node in nt2nodes[nt]} for nt in pd["ntList"]}
-		self.nt2cvecs = {nt:{node:(np.random.rand(pd["dim"])-0.5)/pd["dim"] for node in nt2nodes[nt]} for nt in pd["ntList"]}
+		self.nt2vecs = {nt:{node:(np.random.rand(pd["dim"])-0.5)/pd["dim"] for node in nt2nodes[nt]} for nt in nt2nodes}
+		self.nt2cvecs = {nt:{node:(np.random.rand(pd["dim"])-0.5)/pd["dim"] for node in nt2nodes[nt]} for nt in nt2nodes}
 		et2optimizer = {et:self.Optimizer(et2net[et], pd, sample_size) for et in et2net}
 		alpha = pd["alpha"]
 		print 'sample', 'time', 'alpha', et2optimizer.keys()

@@ -6,7 +6,7 @@ pd['dim'] = 100
 pd['negative'] = 1
 pd['alpha'] = 0.02
 pd['adaptive_lr'] = 1
-pd['samples'] = 10
+pd['samples'] = 1
 pd['threads'] = 10
 pd['ns_refuse_percent'] = 0
 pd['ns_candidate_num'] = 1
@@ -26,11 +26,12 @@ pd['etList'] = ['ll','tt','ww','lt','tw','wl','tl','wt','lw']
 # pd['etList'] = ['ww','lt','tw','wl','tl','wt','lw']
 # pd['etList'] = ['lt','tw','wl']
 # pd['etList'] = ['wl']
-pd['second_order'] = 1
+pd['second_order'] = 0
 pd['use_context_vec'] = 1
 pd['version'] = 0
 
-pd['predictor'] = Gsm2vecPredictor
+pd['predictor'] = TensorPredictor
+# pd['predictor'] = Gsm2vecPredictor
 # pd['predictor'] = PmiPredictor
 # pd['predictor'] = SvdPredictor
 # pd['predictor'] = TfidfPredictor
@@ -48,6 +49,8 @@ pd['bandwidth_t'] = 1000.0
 pd['kernel_bandwidth_l'] = 0.01
 pd['kernel_bandwidth_t'] = 1000.0
 pd['grid_num'] = 20
+
+pd['tensor_rank'] = 10
 
 pd['line_dir'] = '../line_gsm2vec/'
 pd['job_id'] = '0'
