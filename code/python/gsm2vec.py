@@ -17,6 +17,8 @@ from sklearn.neighbors import NearestNeighbors
 sys.path.append('../')
 from lgta.lgta import *
 from mgtm.mgtm import *
+sys.path.append('../scikit-tensor-master')
+from sktensor import dtensor, cp_als
 
 def convert_ts(ts):
 	# return (ts/60)%(60*24*7)
@@ -297,6 +299,59 @@ class SvdPredictor:
 		words = set(words)
 		vec = [1 if w in words else 0 for w in self.voca]
 		return np.array(vec)
+
+
+class TensorPredictor:
+	def __init__(self, pd):
+		self.pd = pd
+		self.lClus = pd["lClus"](pd)
+		self.tClus = pd["tClus"](pd)
+		self.nt2vecs = dict()
+		self.lmbda = []
+
+	def fit(self, tweets, voca):
+		self.w2i= dict()
+		for i, w in enumerate(voca):
+			self.w2i[w] = i
+		texts = [tweet.words for tweet in tweets]
+		locations = [[tweet.lat, tweet.lng] for tweet in tweets]
+		times  = [[convert_ts(tweet.ts)] for tweet in tweets]
+		ls = self.lClus.fit(locations)
+		ts = self.tClus.fit(times)
+		num_l, num_t, num_w = len(self.lClus.get_centers()), len(self.tClus.get_centers()), len(self.w2i)
+		print 'nums', num_l, num_t, num_w
+		T = np.zeros(shape=(num_l, num_t, num_w))
+		for text, l, t in zip(texts, ls, ts):
+			l, t = int(l), int(t)
+			words = [self.w2i[w] for w in text if w in self.w2i] # from text, only retain those words appearing in voca
+			for w in words:
+				T[l, t, w] += 1.0
+		P, fit, itr, exectimes = cp_als(dtensor(T), self.pd['tensor_rank'], init='random')
+		self.nt2vecs['l'] = P.U[0]
+		self.nt2vecs['t'] = P.U[1]
+		self.nt2vecs['w'] = P.U[2]
+		self.lmbda = P.lmbda
+
+	def predict(self, time, lat, lng, words):
+		ls_vec = self.gen_spatial_feature(lat, lng)
+		ts_vec = self.gen_temporal_feature(time)
+		ws_vec = self.gen_textual_feature(words)
+		score = sum([ls_vec[i]*ts_vec[i]*ws_vec[i]*self.lmbda[i] for i in range(self.pd['tensor_rank'])])
+		return round(score, 6)
+
+	def gen_spatial_feature(self, lat, lng):
+		location = [lat, lng]
+		l = int(self.lClus.predict(location))
+		return self.nt2vecs['l'][l]
+
+	def gen_temporal_feature(self, time):
+		time = [convert_ts(time)]
+		t = int(self.tClus.predict(time))
+		return self.nt2vecs['t'][t]
+
+	def gen_textual_feature(self, words):
+		w_vecs = [self.nt2vecs['w'][self.w2i[w]] for w in words if w in self.w2i]
+		return np.average(w_vecs, axis=0) if w_vecs else np.zeros(self.pd["tensor_rank"])
 
 
 class Gsm2vecPredictor:
