@@ -201,8 +201,8 @@ class TweetDatabase:
             tweet = Tweet()
             tweet.load_from_mongo(o)
             cnt += 1
-            if cnt % 100000 == 0:
-                print 'Loaded %d tweets from mongodb.' % cnt
+            # if cnt % 100000 == 0:
+            #     print 'Loaded %d tweets from mongodb.' % cnt
             yield tweet
 
     def get_tweets_phrases_from_db(self, query=None):

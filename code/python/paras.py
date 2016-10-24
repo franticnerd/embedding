@@ -1,23 +1,12 @@
 from gsm2vec import *
 
-def convert_ts(ts):
-	# return (ts/60)%(60*24*7)
-	# return (ts/3600)%(24*7)
-	# return (ts/3600)%24
-	# return ts/3600
-	return (ts)%(3600*24*7)
-
-def kernel(u, h=1):
-	u /= h
-	return math.e**(-u*u/2)
-
-# pd stands for parasDict
+# pd stands for parameter dictionary
 pd = dict()
 pd['dim'] = 100
 pd['negative'] = 1
 pd['alpha'] = 0.02
 pd['adaptive_lr'] = 1
-pd['samples'] = 10
+pd['samples'] = 1
 pd['threads'] = 10
 pd['ns_refuse_percent'] = 0
 pd['ns_candidate_num'] = 1
@@ -37,31 +26,32 @@ pd['etList'] = ['ll','tt','ww','lt','tw','wl','tl','wt','lw']
 # pd['etList'] = ['ww','lt','tw','wl','tl','wt','lw']
 # pd['etList'] = ['lt','tw','wl']
 # pd['etList'] = ['wl']
-pd['second_order'] = 1
+pd['second_order'] = 0
 pd['use_context_vec'] = 1
 pd['version'] = 0
 
-pd['predictor'] = Gsm2vecPredictor
+pd['predictor'] = TensorPredictor
+# pd['predictor'] = Gsm2vecPredictor
 # pd['predictor'] = PmiPredictor
 # pd['predictor'] = SvdPredictor
 # pd['predictor'] = TfidfPredictor
-pd['gsm2vec'] = Gsm2vec_line
+# pd['gsm2vec'] = Gsm2vec_line
 # pd['gsm2vec'] = Gsm2vec
-# pd['gsm2vec'] = Gsm2vec_relation
+pd['gsm2vec'] = Gsm2vec_relation
 pd['lClus'] = LMeanshiftClus
 # pd['tClus'] = TVoidClus
 pd['tClus'] = TMeanshiftClus
 
-pd['kernel_nb_num_l'] = 5
-pd['kernel_nb_num_t'] = 5
-pd['bandwidth_l'] = 0.003
-pd['bandwidth_t'] = 1000
+pd['kernel_nb_num_l'] = 10
+pd['kernel_nb_num_t'] = 10
+pd['bandwidth_l'] = 0.01
+pd['bandwidth_t'] = 1000.0
 pd['kernel_bandwidth_l'] = 0.01
-pd['kernel_bandwidth_t'] = 1000
+pd['kernel_bandwidth_t'] = 1000.0
 pd['grid_num'] = 20
 
-pd['convert_ts'] = convert_ts
-pd['kernel'] = kernel
+pd['tensor_rank'] = 10
+
 pd['line_dir'] = '../line_gsm2vec/'
 pd['job_id'] = '0'
 

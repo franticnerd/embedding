@@ -208,6 +208,12 @@ class Preprocessor:
         print len(tweets)
         print time.time()-self.start_time
 
+    def randomly_pick_tweets_as_training(self, num=950724):
+        tweets = [tweet for tweet in self.db.get_tweets_from_db()]
+        random.shuffle(tweets)
+        pickle.dump(tweets[:num], open(self.io.models_dir+'random_training.model','w'))
+
+
 if __name__ == '__main__':
-    p = Preprocessor(sys.argv[1])
-    p.test()
+    p = Preprocessor("../run/la.yaml")
+    p.randomly_pick_tweets_as_training()

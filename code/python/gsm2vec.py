@@ -3,7 +3,7 @@ import random
 from sklearn.cluster import MeanShift
 from collections import defaultdict
 import time, datetime
-import cPickle as pickle
+from time import time as cur_time
 from zutils.formula import listCosine
 import itertools
 import sys
@@ -14,6 +14,58 @@ from sklearn.feature_extraction import DictVectorizer
 from sklearn.decomposition import TruncatedSVD
 from sklearn.utils.extmath import randomized_svd
 from sklearn.neighbors import NearestNeighbors
+sys.path.append('../')
+from lgta.lgta import *
+from mgtm.mgtm import *
+sys.path.append('../scikit-tensor-master')
+from sktensor import dtensor, cp_als
+
+def convert_ts(ts):
+	# return (ts/60)%(60*24*7)
+	# return (ts/3600)%(24*7)
+	# return (ts/3600)%24
+	# return ts/3600
+	return (ts)%(3600*24*7)
+
+class LgtaPredictor:
+	def __init__(self, pd):
+		self.lgta = LGTA("/shared/data/czhang82/embedding/"+pd['dataset']+"/lgta/")
+
+	def fit(self, tweets, voca):
+		pass
+
+	def predict(self, time, lat, lng, words):
+		return self.lgta.calc_probability(lat, lng, words)
+
+	def gen_spatial_feature(self, lat, lng):
+		return self.lgta.gen_spatial_feature(lat, lng)
+
+	def gen_temporal_feature(self, time):
+		return self.lgta.gen_temporal_feature(time)
+
+	def gen_textual_feature(self, words):
+		return self.lgta.gen_textual_feature(words)
+
+
+class MgtmPredictor:
+	def __init__(self, pd):
+		self.mgtm = MGTM("/shared/data/czhang82/embedding/"+pd['dataset']+"/mgtm/")
+
+	def fit(self, tweets, voca):
+		pass
+
+	def predict(self, time, lat, lng, words):
+		return self.mgtm.calc_probability(lat, lng, words)
+
+	def gen_spatial_feature(self, lat, lng):
+		return self.mgtm.gen_spatial_feature(lat, lng)
+
+	def gen_temporal_feature(self, time):
+		return self.mgtm.gen_temporal_feature(time)
+
+	def gen_textual_feature(self, words):
+		return self.mgtm.gen_textual_feature(words)
+
 
 class TfidfPredictor:
 	def __init__(self, pd):
@@ -24,6 +76,7 @@ class TfidfPredictor:
 		self.et2net = None
 
 	def fit(self, tweets, voca):
+		self.voca = voca
 		self.nt2nodes, self.et2net = self.prepare_training_data(tweets, voca)
 
 	def prepare_training_data(self, tweets, voca):
@@ -31,7 +84,7 @@ class TfidfPredictor:
 		et2net = {et:defaultdict(lambda : defaultdict(float)) for et in ['lt','lw','tw','tl','wl','wt']}
 		texts = [tweet.words for tweet in tweets]
 		locations = [[tweet.lat, tweet.lng] for tweet in tweets]
-		times  = [[self.pd["convert_ts"](tweet.ts)] for tweet in tweets]
+		times  = [[convert_ts(tweet.ts)] for tweet in tweets]
 		ls = self.lClus.fit(locations)
 		ts = self.tClus.fit(times)
 
@@ -59,7 +112,7 @@ class TfidfPredictor:
 	def predict(self, time, lat, lng, words):
 		nt2nodes, et2net = self.nt2nodes, self.et2net
 		location = [lat, lng]
-		time = [self.pd["convert_ts"](time)]
+		time = [convert_ts(time)]
 		l = self.lClus.predict(location)
 		t = self.tClus.predict(time)
 		lw = [ et2net['lw'][l][w] for w in words ]
@@ -69,6 +122,27 @@ class TfidfPredictor:
 		lt_score = et2net['lt'][l][t]
 		score = lw_score+tw_score+lt_score
 		return round(score, 6)
+
+	def gen_spatial_feature(self, lat, lng):
+		location = [lat, lng]
+		l = self.lClus.predict(location)
+		vec = [self.et2net['lw'][l][w] for w in self.voca]
+		thresh = sorted(vec, reverse=True)[10]
+		vec = [num if num>thresh else 0 for num in vec]
+		return np.array(vec)
+
+	def gen_temporal_feature(self, time):
+		time = [convert_ts(time)]
+		t = self.tClus.predict(time)
+		vec = [self.et2net['lw'][t][w] for w in self.voca]
+		thresh = sorted(vec, reverse=True)[10]
+		vec = [num if num>thresh else 0 for num in vec]
+		return np.array(vec)
+
+	def gen_textual_feature(self, words):
+		words = set(words)
+		vec = [1 if w in words else 0 for w in self.voca]
+		return np.array(vec)
 
 
 class PmiPredictor:
@@ -80,6 +154,7 @@ class PmiPredictor:
 		self.et2net = None
 
 	def fit(self, tweets, voca):
+		self.voca = voca
 		self.nt2nodes, self.et2net = self.prepare_training_data(tweets, voca)
 
 	def prepare_training_data(self, tweets, voca):
@@ -87,7 +162,7 @@ class PmiPredictor:
 		et2net = {et:defaultdict(lambda : defaultdict(float)) for et in ['lt','lw','tw']}
 		texts = [tweet.words for tweet in tweets]
 		locations = [[tweet.lat, tweet.lng] for tweet in tweets]
-		times  = [[self.pd["convert_ts"](tweet.ts)] for tweet in tweets]
+		times  = [[convert_ts(tweet.ts)] for tweet in tweets]
 		ls = self.lClus.fit(locations)
 		ts = self.tClus.fit(times)
 
@@ -112,7 +187,7 @@ class PmiPredictor:
 	def predict(self, time, lat, lng, words):
 		nt2nodes, et2net = self.nt2nodes, self.et2net
 		location = [lat, lng]
-		time = [self.pd["convert_ts"](time)]
+		time = [convert_ts(time)]
 		l = self.lClus.predict(location)
 		t = self.tClus.predict(time)
 		lw = [ et2net['lw'][l][w] for w in words ]
@@ -122,6 +197,27 @@ class PmiPredictor:
 		lt_score = et2net['lt'][l][t]
 		score = lw_score+tw_score+lt_score
 		return round(score, 6)
+
+	def gen_spatial_feature(self, lat, lng):
+		location = [lat, lng]
+		l = self.lClus.predict(location)
+		vec = [self.et2net['lw'][l][w] for w in self.voca]
+		thresh = sorted(vec, reverse=True)[10]
+		vec = [num if num>thresh else 0 for num in vec]
+		return np.array(vec)
+
+	def gen_temporal_feature(self, time):
+		time = [convert_ts(time)]
+		t = self.tClus.predict(time)
+		vec = [self.et2net['lw'][t][w] for w in self.voca]
+		thresh = sorted(vec, reverse=True)[10]
+		vec = [num if num>thresh else 0 for num in vec]
+		return np.array(vec)
+
+	def gen_textual_feature(self, words):
+		words = set(words)
+		vec = [1 if w in words else 0 for w in self.voca]
+		return np.array(vec)
 
 
 class SvdPredictor:
@@ -133,13 +229,14 @@ class SvdPredictor:
 		self.et2net = None
 
 	def fit(self, tweets, voca):
+		self.voca = voca
 		self.nt2nodes, self.et2net = self.prepare_training_data(tweets, voca)
 
 	def prepare_training_data(self, tweets, voca):
 		nt2nodes = {nt:defaultdict(float) for nt in self.pd["ntList"]}
 		texts = [tweet.words for tweet in tweets]
 		locations = [[tweet.lat, tweet.lng] for tweet in tweets]
-		times  = [[self.pd["convert_ts"](tweet.ts)] for tweet in tweets]
+		times  = [[convert_ts(tweet.ts)] for tweet in tweets]
 		ls = self.lClus.fit(locations)
 		ts = self.tClus.fit(times)
 		maxDim = max(len(self.lClus.get_centers()), len(self.tClus.get_centers()))
@@ -170,7 +267,7 @@ class SvdPredictor:
 	def predict(self, time, lat, lng, words):
 		nt2nodes, et2net = self.nt2nodes, self.et2net
 		location = [lat, lng]
-		time = [self.pd["convert_ts"](time)]
+		time = [convert_ts(time)]
 		l = self.lClus.predict(location)
 		t = self.tClus.predict(time)
 		l, t = int(l), int(t)
@@ -182,6 +279,80 @@ class SvdPredictor:
 		score = lw_score+tw_score+lt_score
 		return round(score, 6)
 
+	def gen_spatial_feature(self, lat, lng):
+		location = [lat, lng]
+		l = int(self.lClus.predict(location))
+		vec = [self.et2net['lw'][l][w] for w in self.voca]
+		thresh = sorted(vec, reverse=True)[10]
+		vec = [num if num>thresh else 0 for num in vec]
+		return np.array(vec)
+
+	def gen_temporal_feature(self, time):
+		time = [convert_ts(time)]
+		t = int(self.tClus.predict(time))
+		vec = [self.et2net['lw'][t][w] for w in self.voca]
+		thresh = sorted(vec, reverse=True)[10]
+		vec = [num if num>thresh else 0 for num in vec]
+		return np.array(vec)
+
+	def gen_textual_feature(self, words):
+		words = set(words)
+		vec = [1 if w in words else 0 for w in self.voca]
+		return np.array(vec)
+
+
+class TensorPredictor:
+	def __init__(self, pd):
+		self.pd = pd
+		self.lClus = pd["lClus"](pd)
+		self.tClus = pd["tClus"](pd)
+		self.nt2vecs = dict()
+		self.lmbda = []
+
+	def fit(self, tweets, voca):
+		self.w2i= dict()
+		for i, w in enumerate(voca):
+			self.w2i[w] = i
+		texts = [tweet.words for tweet in tweets]
+		locations = [[tweet.lat, tweet.lng] for tweet in tweets]
+		times  = [[convert_ts(tweet.ts)] for tweet in tweets]
+		ls = self.lClus.fit(locations)
+		ts = self.tClus.fit(times)
+		num_l, num_t, num_w = len(self.lClus.get_centers()), len(self.tClus.get_centers()), len(self.w2i)
+		print 'nums', num_l, num_t, num_w
+		T = np.zeros(shape=(num_l, num_t, num_w))
+		for text, l, t in zip(texts, ls, ts):
+			l, t = int(l), int(t)
+			words = [self.w2i[w] for w in text if w in self.w2i] # from text, only retain those words appearing in voca
+			for w in words:
+				T[l, t, w] += 1.0
+		P, fit, itr, exectimes = cp_als(dtensor(T), self.pd['tensor_rank'], init='random')
+		self.nt2vecs['l'] = P.U[0]
+		self.nt2vecs['t'] = P.U[1]
+		self.nt2vecs['w'] = P.U[2]
+		self.lmbda = P.lmbda
+
+	def predict(self, time, lat, lng, words):
+		ls_vec = self.gen_spatial_feature(lat, lng)
+		ts_vec = self.gen_temporal_feature(time)
+		ws_vec = self.gen_textual_feature(words)
+		score = sum([ls_vec[i]*ts_vec[i]*ws_vec[i]*self.lmbda[i] for i in range(self.pd['tensor_rank'])])
+		return round(score, 6)
+
+	def gen_spatial_feature(self, lat, lng):
+		location = [lat, lng]
+		l = int(self.lClus.predict(location))
+		return self.nt2vecs['l'][l]
+
+	def gen_temporal_feature(self, time):
+		time = [convert_ts(time)]
+		t = int(self.tClus.predict(time))
+		return self.nt2vecs['t'][t]
+
+	def gen_textual_feature(self, words):
+		w_vecs = [self.nt2vecs['w'][self.w2i[w]] for w in words if w in self.w2i]
+		return np.average(w_vecs, axis=0) if w_vecs else np.zeros(self.pd["tensor_rank"])
+
 
 class Gsm2vecPredictor:
 	def __init__(self, pd):
@@ -189,6 +360,7 @@ class Gsm2vecPredictor:
 		self.lClus = pd["lClus"](pd)
 		self.tClus = pd["tClus"](pd)
 		self.nt2vecs = None
+		self.start_time = cur_time()
 
 	def fit(self, tweets, voca):
 		gsm2vec = self.pd["gsm2vec"](self.pd)
@@ -204,19 +376,19 @@ class Gsm2vecPredictor:
 		nt2nodes = {nt:set() for nt in self.pd["ntList"]}
 		texts = [tweet.words for tweet in tweets]
 		locations = [[tweet.lat, tweet.lng] for tweet in tweets]
-		times  = [[self.pd["convert_ts"](tweet.ts)] for tweet in tweets]
+		times  = [[convert_ts(tweet.ts)] for tweet in tweets]
 		ls = self.lClus.fit(locations)
 		ts = self.tClus.fit(times)
 
 		relations = []
 		for location, time, text, l, t in zip(locations, times, texts, ls, ts):
 			relation = defaultdict(lambda : defaultdict(float))
-			# for l, weight in self.lClus.tops(location):
-			# 	nt2nodes['l'].add(l)
-			# 	relation['l'][l] = weight
-			# for t, weight in self.tClus.tops(time):
-			# 	nt2nodes['t'].add(t)
-			# 	relation['t'][t] = weight
+			for l, weight in self.lClus.tops(location):
+				nt2nodes['l'].add(l)
+				relation['l'][l] = weight
+			for t, weight in self.tClus.tops(time):
+				nt2nodes['t'].add(t)
+				relation['t'][t] = weight
 			nt2nodes['l'].add(l)
 			relation['l'][l] = 1
 			nt2nodes['t'].add(t)
@@ -236,9 +408,10 @@ class Gsm2vecPredictor:
 		et2net = {et:defaultdict(lambda : defaultdict(float)) for et in all_et}
 		texts = [tweet.words for tweet in tweets]
 		locations = [[tweet.lat, tweet.lng] for tweet in tweets]
-		times  = [[self.pd["convert_ts"](tweet.ts)] for tweet in tweets]
+		times  = [[convert_ts(tweet.ts)] for tweet in tweets]
 		ls = self.lClus.fit(locations)
 		ts = self.tClus.fit(times)
+		print 'clustering_done:', cur_time()-self.start_time,
 
 		for location, time, text, l, t in zip(locations, times, texts, ls, ts):
 			nt2nodes['l'].add(l)
@@ -259,12 +432,14 @@ class Gsm2vecPredictor:
 				if w1!=w2:
 					et2net['ww'][w1][w2] += 1
 					et2net['ww'][w2][w1] += 1
+		print 'build_network_done:', cur_time()-self.start_time,
 
 		# encode_continuous_proximity
-		print "encoding_continuous_proximity"
-		self.encode_continuous_proximity("ll", self.lClus, et2net, nt2nodes)
-		self.encode_continuous_proximity("tt", self.tClus, et2net, nt2nodes)
-		print "encoded_continuous_proximity"
+		# print "encoding_continuous_proximity"
+		# self.encode_continuous_proximity("ll", self.lClus, et2net, nt2nodes)
+		# self.encode_continuous_proximity("tt", self.tClus, et2net, nt2nodes)
+		print 'encode_continuous_proximity_done:', cur_time()-self.start_time,
+		# print "encoded_continuous_proximity"
 
 		# for et in et2net:
 		# 	net = et2net[et]
@@ -288,7 +463,7 @@ class Gsm2vecPredictor:
 	def gen_spatial_feature(self, lat, lng):
 		nt2vecs = self.nt2vecs
 		location = [lat, lng]
-		if self.pd['version']==0 and self.pd["kernel_nb_num_l"]>1:
+		if self.pd['version']==0 and self.pd["kernel_nb_num_l"]>10:
 			l_vecs = [nt2vecs['l'][l]*weight for l, weight in self.lClus.tops(location) if l in nt2vecs['l']]
 			ls_vec = np.average(l_vecs, axis=0) if l_vecs else np.zeros(self.pd["dim"])
 		else:
@@ -298,8 +473,8 @@ class Gsm2vecPredictor:
 
 	def gen_temporal_feature(self, time):
 		nt2vecs = self.nt2vecs
-		time = [self.pd["convert_ts"](time)]
-		if self.pd['version']==0 and self.pd["kernel_nb_num_t"]>1:
+		time = [convert_ts(time)]
+		if self.pd['version']==0 and self.pd["kernel_nb_num_t"]>10:
 			t_vecs = [nt2vecs['t'][t]*weight for t, weight in self.tClus.tops(time) if t in nt2vecs['t']]
 			ts_vec = np.average(t_vecs, axis=0) if t_vecs else np.zeros(self.pd["dim"])
 		else:
@@ -321,7 +496,7 @@ class Gsm2vecPredictor:
 		return round(score, 6)
 
 	def get_vec(self, query):
-		nt2vecs = self.gsm2vec.nt2vecs
+		nt2vecs = self.nt2vecs
 		if isinstance(query, str):
 			return nt2vecs['w'][query.lower()]
 		elif isinstance(query, list):
@@ -331,7 +506,7 @@ class Gsm2vecPredictor:
 
 	def get_nbs1(self, query, nb_nt, neighbor_num=20):
 		vec_query = self.get_vec(query)
-		candidates = [(nb, listCosine(vec_query, vec_nb)) for nb, vec_nb in self.gsm2vec.nt2vecs[nb_nt].items()]
+		candidates = [(nb, listCosine(vec_query, vec_nb)) for nb, vec_nb in self.nt2vecs[nb_nt].items()]
 		candidates.sort(key=lambda tup:tup[1], reverse=True)
 		return candidates[:neighbor_num]
 
@@ -339,7 +514,7 @@ class Gsm2vecPredictor:
 		vec_query1 = self.get_vec(query1)
 		vec_query2 = self.get_vec(query2)
 		candidates = [(nb, func(listCosine(vec_query1, vec_nb), listCosine(vec_query2, vec_nb))) \
-			for nb, vec_nb in self.gsm2vec.nt2vecs[nb_nt].items()]
+			for nb, vec_nb in self.nt2vecs[nb_nt].items()]
 		candidates.sort(key=lambda tup:tup[1], reverse=True)
 		return candidates[:neighbor_num]
 
@@ -373,7 +548,11 @@ class MeanshiftClus:
 
 	def tops(self, x):
 		[distances], [indices] = self.nbrs.kneighbors([x])
-		return [(str(index), self.pd["kernel"](distance,self.kernel_bandwidth)) for index, distance in zip(indices, distances)]
+		return [(str(index), self.kernel(distance,self.kernel_bandwidth)) for index, distance in zip(indices, distances)]
+
+	def kernel(self, u, h=1.0):
+		u /= h
+		return 0 if u>1 else math.e**(-u*u/2)
 
 class LGridClus:
 	def __init__(self, pd):
@@ -446,7 +625,7 @@ class Gsm2vec_line:
 
 	def write_line_input(self, nt2nodes, et2net):
 		for nt, nodes in nt2nodes.items():
-			print nt, len(nodes)
+			# print nt, len(nodes)
 			node_file = open(self.pd["line_dir"]+"node-"+nt+"-"+self.pd["job_id"]+".txt", 'w')
 			for node in nodes:
 				node_file.write(node+"\n")
@@ -487,14 +666,14 @@ class Gsm2vec:
 		self.pd = pd
 		self.nt2vecs = None
 		self.nt2cvecs = None
-		self.start_time = time.time()
+		self.start_time = cur_time()
 
 	def fit(self, nt2nodes, et2net):
 		pd = self.pd
 		sample_size = int(pd["samples"]*1000000)
 		# initialization not specified in the paper, got wrong at the beginning
-		self.nt2vecs = {nt:{node:(np.random.rand(pd["dim"])-0.5)/pd["dim"] for node in nt2nodes[nt]} for nt in pd["ntList"]}
-		self.nt2cvecs = {nt:{node:(np.random.rand(pd["dim"])-0.5)/pd["dim"] for node in nt2nodes[nt]} for nt in pd["ntList"]}
+		self.nt2vecs = {nt:{node:(np.random.rand(pd["dim"])-0.5)/pd["dim"] for node in nt2nodes[nt]} for nt in nt2nodes}
+		self.nt2cvecs = {nt:{node:(np.random.rand(pd["dim"])-0.5)/pd["dim"] for node in nt2nodes[nt]} for nt in nt2nodes}
 		et2optimizer = {et:self.Optimizer(et2net[et], pd, sample_size) for et in et2net}
 		alpha = pd["alpha"]
 		print 'sample', 'time', 'alpha', et2optimizer.keys()
@@ -504,7 +683,7 @@ class Gsm2vec:
 				if alpha < pd["alpha"]*0.0001:
 					alpha = pd["alpha"]*0.0001
 			if i%100000==0:
-				print i, round(time.time()-self.start_time, 1), round(alpha, 5), [et2optimizer[et].get_objective(self.nt2vecs, et) for et in et2optimizer]
+				print i, round(cur_time()-self.start_time, 1), round(alpha, 5), [et2optimizer[et].get_objective(self.nt2vecs, et) for et in et2optimizer]
 			for et in et2net:
 				tu, tv = et[0], et[1]
 				vecs_u, vecs_v = self.nt2vecs[tu], self.nt2vecs[tv]
@@ -592,7 +771,7 @@ class Gsm2vec_relation:
 		self.pd = pd
 		self.nt2vecs = None
 		self.nt2cvecs = None
-		self.start_time = time.time()
+		self.start_time = cur_time()
 
 	def fit(self, nt2nodes, relations):
 		samples = int(self.pd["samples"]*1000000)
@@ -607,9 +786,15 @@ class Gsm2vec_relation:
 			for relation in relations:
 				sample_cnt += 1
 				if sample_cnt%10000==0:
-					print sample_cnt, time.time()-self.start_time
+					print sample_cnt, cur_time()-self.start_time
 				if sample_cnt>samples:
-					return
+					nt2vecs = dict()
+					for nt in self.pd["ntList"]:
+						if nt!=self.pd["predict_type"] and self.pd["second_order"] and self.pd["use_context_vec"]:
+							nt2vecs[nt] = self.nt2cvecs[nt]
+						else:
+							nt2vecs[nt] = self.nt2vecs[nt]
+					return nt2vecs
 				alpha = self.pd["alpha"] * (1 - float(sample_cnt) / samples)
 				if alpha < self.pd["alpha"]*0.0001:
 					alpha = self.pd["alpha"]*0.0001
@@ -635,14 +820,7 @@ class Gsm2vec_relation:
 							f = np.dot(nt2vecs[nt][target], minus_entity_vec)
 							g = (label - expit(f)) * alpha
 							nt2vecs[nt][target] += g*minus_entity_vec
-							# for nt2 in nt2nodes:
-							# 	for entity2 in relation[nt2]:
-							# 		if not (nt==nt2 and entity==entity2):
-							# 			nt2cvecs[nt2][entity2] += g*nt2vecs[nt][target]*relation[nt2][entity2]
-		nt2vecs = dict()
-		for nt in ntList:
-			if nt!=self.pd["predict_type"] and self.pd["second_order"] and self.pd["use_context_vec"]:
-				nt2vecs[nt] = self.nt2cvecs[nt]
-			else:
-				nt2vecs[nt] = self.nt2vecs[nt]
-		return nt2vecs
+							for nt2 in nt2nodes:
+								for entity2 in relation[nt2]:
+									if not (nt==nt2 and entity==entity2):
+										nt2cvecs[nt2][entity2] += g*nt2vecs[nt][target]*relation[nt2][entity2]
