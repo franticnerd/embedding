@@ -25,6 +25,7 @@ def convert_ts(ts):
 	# return (ts/3600)%(24*7)
 	# return (ts/3600)%24
 	# return ts/3600
+	# return (ts)%(3600*24)
 	return (ts)%(3600*24*7)
 
 class LgtaPredictor:
@@ -337,6 +338,7 @@ class TensorPredictor:
 		ts_vec = self.gen_temporal_feature(time)
 		ws_vec = self.gen_textual_feature(words)
 		score = sum([ls_vec[i]*ts_vec[i]*ws_vec[i]*self.lmbda[i] for i in range(self.pd['tensor_rank'])])
+		# score = listCosine(ls_vec, ts_vec)+listCosine(ts_vec, ws_vec)+listCosine(ws_vec, ls_vec) #1
 		return round(score, 6)
 
 	def gen_spatial_feature(self, lat, lng):
@@ -436,8 +438,8 @@ class Gsm2vecPredictor:
 
 		# encode_continuous_proximity
 		# print "encoding_continuous_proximity"
-		# self.encode_continuous_proximity("ll", self.lClus, et2net, nt2nodes)
-		# self.encode_continuous_proximity("tt", self.tClus, et2net, nt2nodes)
+		self.encode_continuous_proximity("ll", self.lClus, et2net, nt2nodes)
+		self.encode_continuous_proximity("tt", self.tClus, et2net, nt2nodes)
 		print 'encode_continuous_proximity_done:', cur_time()-self.start_time,
 		# print "encoded_continuous_proximity"
 
@@ -504,13 +506,13 @@ class Gsm2vecPredictor:
 		else:
 			return nt2vecs['t'][self.tClus.predict([query])]
 
-	def get_nbs1(self, query, nb_nt, neighbor_num=20):
+	def get_nbs1(self, query, nb_nt, neighbor_num=10):
 		vec_query = self.get_vec(query)
 		candidates = [(nb, listCosine(vec_query, vec_nb)) for nb, vec_nb in self.nt2vecs[nb_nt].items()]
 		candidates.sort(key=lambda tup:tup[1], reverse=True)
 		return candidates[:neighbor_num]
 
-	def get_nbs2(self, query1, query2, func, nb_nt, neighbor_num=20):
+	def get_nbs2(self, query1, query2, func, nb_nt, neighbor_num=10):
 		vec_query1 = self.get_vec(query1)
 		vec_query2 = self.get_vec(query2)
 		candidates = [(nb, func(listCosine(vec_query1, vec_nb), listCosine(vec_query2, vec_nb))) \
@@ -625,7 +627,7 @@ class Gsm2vec_line:
 
 	def write_line_input(self, nt2nodes, et2net):
 		for nt, nodes in nt2nodes.items():
-			# print nt, len(nodes)
+			print nt, len(nodes)
 			node_file = open(self.pd["line_dir"]+"node-"+nt+"-"+self.pd["job_id"]+".txt", 'w')
 			for node in nodes:
 				node_file.write(node+"\n")
