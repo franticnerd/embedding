@@ -12,7 +12,7 @@ epoch: 1
 nt_list: ['w','l','t']
 predict_type: ['w', 'l', 't']
 rand_seed: 1
-data_size: 10000
+train_size: 500
 test_size: 100
 kernel_nb_num: 1 # used for efficiency reason (requested by fast k-nearest-neighbor search)
 bandwidth_l: 0.005 # used for detecting spatial hotpsots

@@ -265,7 +265,7 @@ class GraphEmbedLine(object):
 		command += ['-size', str(self.pd['dim'])]
 		command += ['-negative', str(self.pd['negative'])]
 		command += ['-alpha', str(self.pd['alpha'])]
-		sample_num_in_million = max(1, self.pd['epoch']*self.pd['data_size']/1000000)
+		sample_num_in_million = max(1, self.pd['epoch']*self.pd['train_size']/1000000)
 		command += ['-samples', str(sample_num_in_million)]
 		command += ['-threads', str(10)]
 		command += ['-second_order', str(self.pd['second_order'])]
@@ -303,7 +303,7 @@ class GraphEmbedNative(object):
 
 	def fit(self, nt2nodes, et2net):
 		pd = self.pd
-		sample_size = pd['data_size']*pd['epoch']
+		sample_size = pd['train_size']*pd['epoch']
 		# initialization not specified in the paper, got wrong at the beginning, corrected after reading the C source code
 		self.nt2vecs = {nt:{node:(np.random.rand(pd['dim'])-0.5)/pd['dim'] for node in nt2nodes[nt]} for nt in nt2nodes}
 		self.nt2cvecs = {nt:{node:(np.random.rand(pd['dim'])-0.5)/pd['dim'] for node in nt2nodes[nt]} for nt in nt2nodes}

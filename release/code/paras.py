@@ -15,6 +15,11 @@ def load_params(para_file):
 
 def set_default_params():
     pd = dict()
+    pd['data_dir'] = '/Users/chao/data/projects/embedding/tweets-dev/'
+    pd['tweet_file'] = pd['data_dir'] + 'input/tweets.txt'
+    pd['result_dir'] = pd['data_dir'] + 'output/'
+    pd['model_dir'] = pd['data_dir'] + 'model/'
+
     pd['voca_min'] = 0
     pd['voca_max'] = 20000
     pd['dim'] = 10
@@ -24,7 +29,7 @@ def set_default_params():
     pd['nt_list'] = ['w','l','t']
     pd['predict_type'] = ['w', 'l', 't']
     pd['rand_seed'] = 1
-    pd['data_size'] = 10000
+    pd['train_size'] = 9900
     pd['test_size'] = 100
     pd['kernel_nb_num'] = 1 # used for efficiency reason (requested by fast k-nearest-neighbor search)
     pd['bandwidth_l'] = 0.005 # used only in LClus, should be of similar magnitude as grid_len
@@ -33,9 +38,5 @@ def set_default_params():
     pd['kernel_bandwidth_t'] = 1000.0
     pd['second_order'] = 0
     pd['use_context_vec'] = 1 # used only in second order graph embedding, suggest value: 1
-    pd['data_dir'] = '/Users/chao/data/projects/embedding/tweets-dev/'
-    pd['tweet_file'] = pd['data_dir'] + 'input/tweets.txt'
-    pd['result_dir'] = pd['data_dir'] + 'output/'
-    pd['model_dir'] = pd['data_dir'] + 'model/'
     return pd
 

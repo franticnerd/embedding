@@ -1,0 +1,101 @@
+----What is the code doing----
+
+This code base implements "Regions, Periods, Activities: Uncovering Urban Dynamics via Cross-Modal Representation Learning" published at WWW 2017.
+
+The input of the program is a set of geo-tagged tweets, like the toy example shown in "data/toy/input/tweets.txt". The output of the program is the embeddings for spatial hotspots, temporal hotspots and textual keyphrases, learnt from the training data (a subset of your input tweets). The mean rank (mr) and mean reciprocal rank (mrr) evaluated on the testing data (those input tweets left out of the training data) will also be printed.
+
+
+----How to run the code----
+
+Suppose you are at the "code/" directory.
+
+You will first need to compile the underlying C++ code once:
+make -C GraphEmbed/
+
+After that, you can simply use the following command to run the code:
+python './eval_recovery.py' [your_yaml_file]
+
+[your_yaml_file] will be used to specify:
+1) the paths of your input tweets and output models;
+2) your personalized parameters. 
+
+One example yaml file is shown in "code/configs/toy.yaml".
+
+
+----What is the format for input and output data----
+
+Input file: 
+8 fields separated by "\x01". 
+The 8 fields in turn are: tweet_id, user_id, latitude, longitude, datetime, timestamp, list_of_keyphrases, raw_text. 
+The keyphrases in list_of_keyphrases are separated by " " (space), and the words in one keyphrase are separated by "_" (underscore). The list_of_keyphrases is used as textual signals to train the embedding model, while the raw_text is currenly unused.
+
+Output file: 
+2 fields separated by "\x01". 
+The first field in the embedded object. If the embedded object is a spatial hotspot, then the object is represented by the coordinate (latitude, longitude) of the hotspot centroid; if the embedded object is a temporal hotspot, then the object is represented by the hour of the hotspot centroid; if the embedded object is a textual keyphrase, then the object is represented by the textual keyphrase itself.
+The second field is the learnt embeddings, represented using a Python list (of floats).
+
+
+----What are the parameters and how to set them----
+
+One set of default parameters are provided in the set_default_params() function of paras.py. (Hi Chao, maybe we should also put the default paras into a yaml? I'm not quite sure)
+
+In the following we describe the parameters one by one, with some advice in how to set them.
+
+[voca_min]
+What is it: The keyphrases will be ranked based on their frequencies (high to low). The [voca_min] most frequent keyphrases will be ignored in the training process.
+How to set it: It can be used to filter out stop words (or more precisely, "stop keyphrases"). In our case, where the stop words have already been removed from the tweets, just setting it to 0 should be fine.
+
+[voca_max]
+What is it: Similar to [voca_min], The keyphrases less frequent than the [voca_max]th ranked keyphrases will be ignored in the training process.
+How to set it: It can be used to control your time and space complexity. A smaller [voca_max] will save you both memory and time. Quantitative evaluation results are not so sensitive to [voca_max] as long as it is larger than a few thousand, but qualitative results may be affected if you care about low-frequency keyphrases.
+
+[dim]
+What is it: The dimension of the learnt embeddings. 
+How to set it: It is an important parameter, affecting the trade-off between efficiency and effectiveness. The time and space cost can scale almost linearly with [dim], but an insufficiently large [dim] will largely sacrifice the effectiveness. In our study, we found setting [dim] to a few hundreds can be a good choice for the mrr to be plateaued with it. 
+
+[negative]
+What is it: The number of negative samples for each positive sample.
+How to set it: In our study, we found [negative]=1 constantly give us the best mrr, almost no matter how we set the other parameters.
+
+[alpha]
+What is it: The learning rate of SGD.
+How to set it: In our study, we found 0.005-0.05 can be a reasonable range for [alpha]. A too large [alpha] will lead SGD to diverge, while a too small [alpha] will make SGD converge very slow. But as long as you set [alpha] to a reasonable range, it will usually converge too a similarly good solution if you have enough [epoch] (like a few dozens as illustrated next), as we are using a decaying alpha.
+
+[epoch]
+What is it: The number of epochs we iterate over our data. More precisely, the SGD will perform [epoch]*[train_size] number of updatings.
+How to set it: Similar as [dim], it is another important parameter affecting the trade-off between efficiency and effectiveness. The time and space cost can scale almost linearly with [epoch], but an insufficiently large [epoch] will largely sacrifice the effectiveness. In our study, we found setting [epoch] to a few dozens can be a good choice for the mrr to be plateaued with it. 
+
+[nt_list]
+What is it: The list of "node types" to embed. Possible "node type" can be "w" (denoting word, or more precisely, keyphrase), "l" (denoting "location"), 't' (denoting "time").
+How to set it: It's better to include and embed all of these 3 types (location, time and keyphrase) of information. But you can also choose to only retain two of them if you don't care about the remaining one.
+
+[predict_type]
+What is it: The list of "node types", on which to perform our quantitative evaluation and report mr and mrr.
+How to set it: Doesn't hurt to include all of the 3 types, since the downside is just the tripled testing time (which is usually small compared with training time), while the upside is a more complete view of your quantitative results.
+
+[rand_seed]
+What is it: The ramdom seed used to control the reproducibility of the program.
+How to set it: Set it to the same value if you want to guarantee two runs (of the same input and same parameters) give you the identical results. (Hi Chao, actually LINE's C++ code has its own randomness, which hasn't been taken care of by this. I can revise it if needed)
+
+[train_size]
+What is it: The number of training tweets. A random subset of [train_size] input tweets will be selected as training data.
+How to set it: [train_size]+[test_size] must be no larger than the total number of input tweets. Otherwise, an error will be raised. It is yet another important parameter affecting the trade-off between efficiency and effectiveness. The time and space cost can scale almost linearly with [train_size], but an insufficiently large [train_size] will largely sacrifice the effectiveness. In our study, we found when the [train_size] reaches one million, the mrr still hasn't been plateaued with it. And also, when [epoch]*[train_size] keeps unchanged, the results can usually be improved if you use a larger [train_size].
+
+[test_size]
+What is it: The number of testing tweets. A random subset of [test_size] input tweets will be selected as testing data. The set of testing data is guaranteed to be exclusive with the set of training data.
+How to set it: [train_size]+[test_size] must be no larger than the total number of input tweets. Otherwise, an error will be raised. We empirically found when [test_size] reaches 10000, the mrr computed based on the testing data tends to be quite reliable. You might also use statistical tests to find a reasonably reliable [test_size].
+
+[kernel_nb_num]
+[bandwidth_l]
+[bandwidth_t]
+[kernel_bandwidth_l]
+[kernel_bandwidth_t]
+Hi Chao, those are trick... let's discuss over phone
+
+[second_order]
+What is it: Whether to encode second order proximity. If set to 0, then first order proximity will be used; if set to 1, second order proximity will be used.
+How to set it: [second_order] should only be set to 0 or 1. First order proximity and second order proximity tend to give very similar performance (mrr). Sometimes, second order proximity produces slightly better mrr.
+
+[use_context_vec]
+What is it: Will only be used if [second_order] is set to 1, i.e., second order proximity is used. If [use_context_vec] is set to 1, when predicting a certain type in the testing phase, context vectors instead of center vectors will be used for all other types (in computing cosine similarity).
+How to set it: [use_context_vec] should only be set to 0 or 1. In our study, we found [use_context_vec]=1 gives better mrr.

@@ -15,7 +15,9 @@ def read_data(pd):
     tweets = read_tweets(pd['tweet_file'])
     random.shuffle(tweets)
     voca = get_voca(tweets, pd['voca_min'], pd['voca_max'])
-    train_data, test_data = tweets[:-pd['test_size']], tweets[-pd['test_size']:]
+    if pd['train_size']+pd['test_size'] > len(tweets):
+        raise IndexError("error: train_size+test_size>number_of_input_tweets")
+    train_data, test_data = tweets[:pd['train_size']], tweets[-pd['test_size']:]
     print 'Reading data done, elapsed time: ', round(time.time()-start_time)
     print 'Total number of tweets: ', len(tweets)
     print 'Number of training tweets: ', len(train_data)
