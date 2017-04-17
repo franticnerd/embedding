@@ -24,7 +24,8 @@ class EmbedPredictor(object):
 	def __init__(self, pd):
 		self.pd = pd
 		self.lClus = pd['lClus'](pd)
-		self.nt2vecs = None
+		self.nt2vecs = None # center vectors
+		self.nt2cvecs = None # context vectors
 		self.start_time = cur_time()
 		self.embed_algo = self.pd['embed_algo'](self.pd)
 
@@ -33,7 +34,7 @@ class EmbedPredictor(object):
 		locations = [[tweet.lat, tweet.lng] for tweet in tweets]
 		self.lClus.fit(locations)
 		nt2nodes, et2net = self.prepare_training_data(tweets, voca) # nt stands for "node type", and et stands for "edge type"
-		self.nt2vecs = self.embed_algo.fit(nt2nodes, et2net)
+		self.nt2vecs, self.nt2cvecs = self.embed_algo.fit(nt2nodes, et2net)
 
 	def prepare_training_data(self, tweets, voca):
 		nt2nodes = {nt:set() for nt in self.pd['nt_list']}
@@ -84,8 +85,14 @@ class EmbedPredictor(object):
 						et2net[et][n1][n2] = proximity
 						et2net[et][n2][n1] = proximity
 
-	def gen_spatial_feature(self, lat, lng):
-		nt2vecs = self.nt2vecs
+	def get_nt2vecs(self, is_predict_type):
+		if not is_predict_type and self.pd['second_order'] and self.pd['use_context_vec']:
+			return self.nt2cvecs
+		else:
+			return self.nt2vecs
+
+	def gen_spatial_feature(self, lat, lng, predict_type):
+		nt2vecs = self.get_nt2vecs('l'==predict_type)
 		location = [lat, lng]
 		if self.pd["kernel_nb_num"]>1: # do kernel smoothing
 			l_vecs = [nt2vecs['l'][l]*weight for l, weight in self.lClus.get_top_nbs(location) if l in nt2vecs['l']]
@@ -95,32 +102,32 @@ class EmbedPredictor(object):
 			ls_vec = nt2vecs['l'][l] if l in nt2vecs['l'] else np.zeros(self.pd["dim"])
 		return ls_vec
 
-	def gen_temporal_feature(self, time):
-		nt2vecs = self.nt2vecs
+	def gen_temporal_feature(self, time, predict_type):
+		nt2vecs = self.get_nt2vecs('t'==predict_type)
 		t = convert_ts(time)
 		ts_vec = nt2vecs['t'][t] if t in nt2vecs['t'] else np.zeros(self.pd['dim'])
 		return ts_vec
 
-	def gen_textual_feature(self, words):
-		nt2vecs = self.nt2vecs
+	def gen_textual_feature(self, words, predict_type):
+		nt2vecs = self.get_nt2vecs('w'==predict_type)
 		w_vecs = [nt2vecs['w'][w] for w in words if w in nt2vecs['w']]
 		ws_vec = np.average(w_vecs, axis=0) if w_vecs else np.zeros(self.pd['dim'])
 		return ws_vec
 
-	def gen_category_feature(self, c):
-		nt2vecs = self.nt2vecs
+	def gen_category_feature(self, c, predict_type):
+		nt2vecs = self.get_nt2vecs('c'==predict_type)
 		c_vec = nt2vecs['c'][c] if c in nt2vecs['c'] else np.zeros(self.pd['dim'])
 		return c_vec
 
-	def predict(self, time, lat, lng, words, category):
+	def predict(self, time, lat, lng, words, category, predict_type):
 		# if 'c' not in self.pd['nt_list']:
 		# 	words += category.lower().split()
-		l_vec = self.gen_spatial_feature(lat, lng)
-		t_vec = self.gen_temporal_feature(time)
-		w_vec = self.gen_textual_feature(words)
+		l_vec = self.gen_spatial_feature(lat, lng, predict_type)
+		t_vec = self.gen_temporal_feature(time, predict_type)
+		w_vec = self.gen_textual_feature(words, predict_type)
 		vecs = [l_vec, t_vec, w_vec]
 		if 'c' in self.pd['nt_list']:
-			c_vec = self.gen_category_feature(category)
+			c_vec = self.gen_category_feature(category, predict_type)
 			vecs.append(c_vec)
 		score = sum([cosine(vec1, vec2) for vec1, vec2 in itertools.combinations(vecs, r=2)])
 		return round(score, 6)
@@ -235,6 +242,7 @@ class GraphEmbedLine(object):
 	def __init__(self, pd):
 		self.pd = pd
 		self.nt2vecs = dict()
+		self.nt2cvecs = dict()
 		self.path_prefix = 'GraphEmbed/'
 		self.path_suffix = '-'+self.pd['job_id']+'.txt'
 
@@ -242,7 +250,7 @@ class GraphEmbedLine(object):
 		self.write_line_input(nt2nodes, et2net)
 		self.execute_line()
 		self.read_line_output()
-		return self.nt2vecs
+		return self.nt2vecs, self.nt2cvecs
 
 	def write_line_input(self, nt2nodes, et2net):
 		if 'c' not in nt2nodes: # add 'c' nodes (with no connected edges) to comply to Line's interface
@@ -275,20 +283,18 @@ class GraphEmbedLine(object):
 
 	def read_line_output(self):
 		for nt in self.pd['nt_list']:
-			if nt!=self.pd['predict_type'] and self.pd['second_order'] and self.pd['use_context_vec']:
-				vecs_path = self.path_prefix+'context-'+nt+self.path_suffix
-			else:
-				vecs_path = self.path_prefix+'output-'+nt+self.path_suffix
-			vecs_file = open(vecs_path, 'r')
-			vecs = dict()
-			for line in vecs_file:
-				node, vec_str = line.strip().split('\t')
-				try:
-					node = ast.literal_eval(node)
-				except: # when nt is 'w', the type of node is string
-					pass
-				vecs[node] = np.array([float(i) for i in vec_str.split(' ')])
-			self.nt2vecs[nt] = vecs
+			for nt2vecs,vec_type in [(self.nt2vecs,'output-'), (self.nt2cvecs,'context-')]:
+				vecs_path = self.path_prefix+vec_type+nt+self.path_suffix
+				vecs_file = open(vecs_path, 'r')
+				vecs = dict()
+				for line in vecs_file:
+					node, vec_str = line.strip().split('\t')
+					try:
+						node = ast.literal_eval(node)
+					except: # when nt is 'w', the type of node is string
+						pass
+					vecs[node] = np.array([float(i) for i in vec_str.split(' ')])
+				nt2vecs[nt] = vecs
 		for f in os.listdir(self.path_prefix): # clean up the tmp files created by this execution
 		    if f.endswith(self.path_suffix):
 		        os.remove(self.path_prefix+f)
@@ -320,13 +326,7 @@ class GraphEmbedNative(object):
 				if pd['second_order']:
 					vecs_v = self.nt2cvecs[tv]
 				et2optimizer[et].sgd_one_step(vecs_u, vecs_v, alpha)
-		nt2vecs = dict()
-		for nt in nt2nodes:
-			if nt!=pd["predict_type"] and pd["second_order"] and pd["use_context_vec"]:
-				nt2vecs[nt] = self.nt2cvecs[nt]
-			else:
-				nt2vecs[nt] = self.nt2vecs[nt]
-		return nt2vecs
+		return self.nt2vecs, self.nt2cvecs
 
 	class Optimizer(object):
 		def __init__(self, net, pd, sample_size):

@@ -14,24 +14,24 @@ class QuantitativeEvaluator:
         for tweet in tweets:
             scores = []
             if self.predict_type=='p':
-                score = predictor.predict(tweet.ts, tweet.poi_lat, tweet.poi_lng, tweet.words, tweet.category)
+                score = predictor.predict(tweet.ts, tweet.poi_lat, tweet.poi_lng, tweet.words, tweet.category, self.predict_type)
             else:
-                score = predictor.predict(tweet.ts, tweet.lat, tweet.lng, tweet.words, tweet.category)
+                score = predictor.predict(tweet.ts, tweet.lat, tweet.lng, tweet.words, tweet.category, self.predict_type)
             scores.append(score)
             if self.predict_type=='c':
                 for category in paras.pd['category_list']:
                     if category!=tweet.category:
-                        noise_score = predictor.predict(tweet.ts, tweet.lat, tweet.lng, tweet.words, category)
+                        noise_score = predictor.predict(tweet.ts, tweet.lat, tweet.lng, tweet.words, category, self.predict_type)
                         scores.append(noise_score)
             else:
                 for i in range(self.fake_num):
                     noise = noiseList.pop()
                     if self.predict_type in ['l','p']:
-                        noise_score = predictor.predict(tweet.ts, noise.lat, noise.lng, tweet.words, tweet.category)
+                        noise_score = predictor.predict(tweet.ts, noise.lat, noise.lng, tweet.words, tweet.category, self.predict_type)
                     elif self.predict_type=='t':
-                        noise_score = predictor.predict(noise.ts, tweet.lat, tweet.lng, tweet.words, tweet.category)
+                        noise_score = predictor.predict(noise.ts, tweet.lat, tweet.lng, tweet.words, tweet.category, self.predict_type)
                     elif self.predict_type=='w':
-                        noise_score = predictor.predict(tweet.ts, tweet.lat, tweet.lng, noise.words, tweet.category)
+                        noise_score = predictor.predict(tweet.ts, tweet.lat, tweet.lng, noise.words, tweet.category, self.predict_type)
                     scores.append(noise_score)
             scores.sort()
             # handle ties

@@ -36,7 +36,7 @@ def set_default_params():
     pd['bandwidth_t'] = 1000.0 # used only in LClus
     pd['kernel_bandwidth_l'] = 0.01
     pd['kernel_bandwidth_t'] = 1000.0
-    pd['second_order'] = 0
+    pd['second_order'] = 1
     pd['use_context_vec'] = 1 # used only in second order graph embedding, suggest value: 1
     return pd
 
