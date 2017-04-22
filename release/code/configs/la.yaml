@@ -1,17 +1,17 @@
-data_dir: &DIR ../data/toy/
+data_dir: &DIR /shared/data/kzhang53/embedding/la/
 tweet_file: !join [*DIR, input/tweets.txt]
 result_dir: !join [*DIR, output/]
 model_dir: !join [*DIR, model/]
 
 voca_min: 0
 voca_max: 20000
-dim: 10
+dim: 300
 negative: 1
 alpha: 0.02 # learning rate
-epoch: 1
+epoch: 100
 nt_list: ['w','l','t']
 predict_type: ['w', 'l', 't']
-test_size: 100
+test_size: 1000
 kernel_nb_num: 1 # used for efficiency reason (requested by fast k-nearest-neighbor search)
 bandwidth_l: 0.002 # used for detecting spatial hotpsots
 bandwidth_t: 1000.0 # used for detecting temporal hotpsots

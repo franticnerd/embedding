@@ -6,9 +6,8 @@ def load_params(para_file):
         para = set_default_params()
     else:
         para = yaml_loader().load(para_file)
-    para['lClus'] = LMeanshiftClus
     para['embed_algo'] = GraphEmbedLine
-    para['job_id'] = '0'
+    para['rand_seed'] = 1
     para['category_list'] = []
     return para
 
@@ -26,16 +25,14 @@ def set_default_params():
     pd['negative'] = 1
     pd['alpha'] = 0.02 # learning rate
     pd['epoch'] = 1
-    pd['nt_list'] = ['w','l','t']
+    pd['nt_list'] = ['w', 'l', 't']
     pd['predict_type'] = ['w', 'l', 't']
-    pd['rand_seed'] = 1
-    pd['train_size'] = 9900
     pd['test_size'] = 100
     pd['kernel_nb_num'] = 1 # used for efficiency reason (requested by fast k-nearest-neighbor search)
-    pd['bandwidth_l'] = 0.005 # used only in LClus, should be of similar magnitude as grid_len
+    pd['bandwidth_l'] = 0.002 # used only in LClus, should be of similar magnitude as grid_len
     pd['bandwidth_t'] = 1000.0 # used only in LClus
-    pd['kernel_bandwidth_l'] = 0.01
-    pd['kernel_bandwidth_t'] = 1000.0
+    pd['kernel_bandwidth_l'] = 0.005
+    pd['kernel_bandwidth_t'] = 4000.0
     pd['second_order'] = 1
     pd['use_context_vec'] = 1 # used only in second order graph embedding, suggest value: 1
     return pd

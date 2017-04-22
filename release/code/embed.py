@@ -17,13 +17,11 @@ from sklearn.metrics.pairwise import cosine_similarity
 def cosine(list1, list2):
 	return cosine_similarity([list1],[list2])[0][0]
 
-def convert_ts(ts):
-	return (ts/3600)%24
-
 class EmbedPredictor(object):
 	def __init__(self, pd):
 		self.pd = pd
-		self.lClus = pd['lClus'](pd)
+		self.lClus = LMeanshiftClus(pd)
+		self.tClus = TMeanshiftClus(pd)
 		self.nt2vecs = None # center vectors
 		self.nt2cvecs = None # context vectors
 		self.start_time = cur_time()
@@ -32,16 +30,21 @@ class EmbedPredictor(object):
 	def fit(self, tweets, voca):
 		random.shuffle(tweets)
 		locations = [[tweet.lat, tweet.lng] for tweet in tweets]
+		times = [[tweet.ts] for tweet in tweets]
 		self.lClus.fit(locations)
+		print 'spatial cluster num:', len(self.lClus.centroids)
+		self.tClus.fit(times)
+		print 'temporal cluster num:', len(self.tClus.centroids)
 		nt2nodes, et2net = self.prepare_training_data(tweets, voca) # nt stands for "node type", and et stands for "edge type"
-		self.nt2vecs, self.nt2cvecs = self.embed_algo.fit(nt2nodes, et2net)
+		sample_size = len(tweets)*self.pd['epoch']
+		self.nt2vecs, self.nt2cvecs = self.embed_algo.fit(nt2nodes, et2net, sample_size)
 
 	def prepare_training_data(self, tweets, voca):
 		nt2nodes = {nt:set() for nt in self.pd['nt_list']}
 		et2net = defaultdict(lambda : defaultdict(lambda : defaultdict(float)))
 		for tweet in tweets:
 			l = self.lClus.predict([tweet.lat, tweet.lng])
-			t = convert_ts(tweet.ts)
+			t = self.tClus.predict([tweet.ts])
 			c = tweet.category
 			words = [w for w in tweet.words if w in voca] # from text, only retain those words appearing in voca
 			nts = self.pd['nt_list'][1:]
@@ -62,8 +65,7 @@ class EmbedPredictor(object):
 				if w1!=w2:
 					et2net['ww'][w1][w2] += 1
 					et2net['ww'][w2][w1] += 1
-		for nt, clus in [('l',self.lClus)]:
-		# for nt, clus in [('l',self.lClus), ('t',self.tClus)]:
+		for nt, clus in [('l',self.lClus), ('t',self.tClus)]:
 			if type(clus) == MeanshiftClus:
 				'''
 				strangely, MeanshiftClus seems to produce some empty clusters, but we still have to 
@@ -104,7 +106,13 @@ class EmbedPredictor(object):
 
 	def gen_temporal_feature(self, time, predict_type):
 		nt2vecs = self.get_nt2vecs('t'==predict_type)
-		t = convert_ts(time)
+		time = [time]
+		if self.pd["kernel_nb_num"]>1: # do kernel smoothing
+			t_vecs = [nt2vecs['t'][t]*weight for t, weight in self.tClus.get_top_nbs(time) if l in nt2vecs['t']]
+			ts_vec = np.average(t_vecs, axis=0) if t_vecs else np.zeros(self.pd["dim"])
+		else:
+			t = self.tClus.predict(time)
+			ts_vec = nt2vecs['t'][t] if t in nt2vecs['t'] else np.zeros(self.pd["dim"])
 		ts_vec = nt2vecs['t'][t] if t in nt2vecs['t'] else np.zeros(self.pd['dim'])
 		return ts_vec
 
@@ -143,7 +151,7 @@ class EmbedPredictor(object):
 		elif type(query)==list:
 			return nt2vecs['l'][self.lClus.predict(query)]
 		else:
-			return nt2vecs['t'][query]
+			return nt2vecs['t'][self.tClus.predict(query)]
 
 	def poi2vec(self, poi):
 		l_vec = self.gen_spatial_feature(poi.lat, poi.lng)
@@ -192,27 +200,6 @@ class Clus(object):
 		u /= h
 		return 0 if u>1 else math.e**(-u*u/2)
 
-
-class LGridClus(Clus):
-	def __init__(self, pd):
-		super(LGridClus, self).__init__(pd)
-		self.grid_len = pd['grid_len']
-		self.kernel_bandwidth = pd['kernel_bandwidth_l']
-
-	def fit(self, locations):
-		centroids = []
-		for lat, lng in locations:
-			centroid_lat = round(lat - lat%self.grid_len + self.grid_len/2, 6)
-			centroid_lng = round(lng - lng%self.grid_len + self.grid_len/2, 6)
-			centroids.append((centroid_lat, centroid_lng))
-		self.centroids = list(set(centroids))
-		self.nbrs.fit(self.centroids)
-		print 'location cluster num:', len(self.centroids)
-
-	def predict(self, location):
-		return self.nbrs.kneighbors([location])[1][0][0]
-
-
 class LMeanshiftClus(object):
 	def __new__(cls, pd):
 		return MeanshiftClus(pd, pd["bandwidth_l"], pd["kernel_bandwidth_l"])
@@ -232,7 +219,6 @@ class MeanshiftClus(Clus):
 		self.ms.fit(X)
 		self.centroids = self.ms.cluster_centers_
 		self.nbrs.fit(self.centroids)
-		print 'location cluster num:', len(self.centroids)
 
 	def predict(self, x):
 		return self.ms.predict([x])[0]
@@ -244,11 +230,11 @@ class GraphEmbedLine(object):
 		self.nt2vecs = dict()
 		self.nt2cvecs = dict()
 		self.path_prefix = 'GraphEmbed/'
-		self.path_suffix = '-'+self.pd['job_id']+'.txt'
+		self.path_suffix = '-'+str(os.getpid())+'.txt'
 
-	def fit(self, nt2nodes, et2net):
+	def fit(self, nt2nodes, et2net, sample_size):
 		self.write_line_input(nt2nodes, et2net)
-		self.execute_line()
+		self.execute_line(sample_size)
 		self.read_line_output()
 		return self.nt2vecs, self.nt2cvecs
 
@@ -268,16 +254,16 @@ class GraphEmbedLine(object):
 					for v, weight in u_nb.items():
 						edge_file.write('\t'.join([str(u), str(v), str(weight), 'e'])+'\n')
 
-	def execute_line(self):
+	def execute_line(self, sample_size):
 		command = ['./hin2vec']
 		command += ['-size', str(self.pd['dim'])]
 		command += ['-negative', str(self.pd['negative'])]
 		command += ['-alpha', str(self.pd['alpha'])]
-		sample_num_in_million = max(1, self.pd['epoch']*self.pd['train_size']/1000000)
+		sample_num_in_million = max(1, sample_size/1000000)
 		command += ['-samples', str(sample_num_in_million)]
 		command += ['-threads', str(10)]
 		command += ['-second_order', str(self.pd['second_order'])]
-		command += ['-job_id', str(self.pd['job_id'])]
+		command += ['-job_id', str(os.getpid())]
 		# call(command, cwd=self.path_prefix, stdout=open('stdout.txt','wb'))
 		call(command, cwd=self.path_prefix)
 
@@ -307,9 +293,8 @@ class GraphEmbedNative(object):
 		self.nt2cvecs = None
 		self.start_time = cur_time()
 
-	def fit(self, nt2nodes, et2net):
+	def fit(self, nt2nodes, et2net, sample_size):
 		pd = self.pd
-		sample_size = pd['train_size']*pd['epoch']
 		# initialization not specified in the paper, got wrong at the beginning, corrected after reading the C source code
 		self.nt2vecs = {nt:{node:(np.random.rand(pd['dim'])-0.5)/pd['dim'] for node in nt2nodes[nt]} for nt in nt2nodes}
 		self.nt2cvecs = {nt:{node:(np.random.rand(pd['dim'])-0.5)/pd['dim'] for node in nt2nodes[nt]} for nt in nt2nodes}

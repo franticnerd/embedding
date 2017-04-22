@@ -20,7 +20,7 @@ class Tweet:
         self.lat = float(items[2])
         self.lng = float(items[3])
         self.datetime = items[4]
-        self.ts = int(float(items[5]))
+        self.ts = int(float(items[5]))%(3600*24)
         self.text = items[6]
         self.words = self.text.split(' ')
         self.raw = items[7] 

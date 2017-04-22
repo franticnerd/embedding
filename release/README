@@ -10,7 +10,8 @@ The input of the program is a set of geo-tagged tweets, like the toy example sho
 Suppose you are at the "code/" directory.
 
 You will first need to compile the underlying C++ code once:
-make -C GraphEmbed/
+On OSX: make -C GraphEmbed/
+On linux: make -C GraphEmbed/ -f makefile_linux
 
 After that, you can simply use the following command to run the code:
 python './eval_recovery.py' [your_yaml_file]
@@ -37,7 +38,7 @@ The second field is the learnt embeddings, represented using a Python list (of f
 
 ----What are the parameters and how to set them----
 
-One set of default parameters are provided in the set_default_params() function of paras.py. (Hi Chao, maybe we should also put the default paras into a yaml? I'm not quite sure)
+One set of default parameters is provided in the "code/configs/toy.yaml" file.
 
 In the following we describe the parameters one by one, with some advice in how to set them.
 
@@ -62,7 +63,7 @@ What is it: The learning rate of SGD.
 How to set it: In our study, we found 0.005-0.05 can be a reasonable range for [alpha]. A too large [alpha] will lead SGD to diverge, while a too small [alpha] will make SGD converge very slow. But as long as you set [alpha] to a reasonable range, it will usually converge too a similarly good solution if you have enough [epoch] (like a few dozens as illustrated next), as we are using a decaying alpha.
 
 [epoch]
-What is it: The number of epochs we iterate over our data. More precisely, the SGD will perform [epoch]*[train_size] number of updatings.
+What is it: The number of epochs we iterate over the training data. 
 How to set it: Similar as [dim], it is another important parameter affecting the trade-off between efficiency and effectiveness. The time and space cost can scale almost linearly with [epoch], but an insufficiently large [epoch] will largely sacrifice the effectiveness. In our study, we found setting [epoch] to a few dozens can be a good choice for the mrr to be plateaued with it. 
 
 [nt_list]
@@ -73,24 +74,29 @@ How to set it: It's better to include and embed all of these 3 types (location, 
 What is it: The list of "node types", on which to perform our quantitative evaluation and report mr and mrr.
 How to set it: Doesn't hurt to include all of the 3 types, since the downside is just the tripled testing time (which is usually small compared with training time), while the upside is a more complete view of your quantitative results.
 
-[rand_seed]
-What is it: The ramdom seed used to control the reproducibility of the program.
-How to set it: Set it to the same value if you want to guarantee two runs (of the same input and same parameters) give you the identical results. (Hi Chao, actually LINE's C++ code has its own randomness, which hasn't been taken care of by this. I can revise it if needed)
-
-[train_size]
-What is it: The number of training tweets. A random subset of [train_size] input tweets will be selected as training data.
-How to set it: [train_size]+[test_size] must be no larger than the total number of input tweets. Otherwise, an error will be raised. It is yet another important parameter affecting the trade-off between efficiency and effectiveness. The time and space cost can scale almost linearly with [train_size], but an insufficiently large [train_size] will largely sacrifice the effectiveness. In our study, we found when the [train_size] reaches one million, the mrr still hasn't been plateaued with it. And also, when [epoch]*[train_size] keeps unchanged, the results can usually be improved if you use a larger [train_size].
-
 [test_size]
 What is it: The number of testing tweets. A random subset of [test_size] input tweets will be selected as testing data. The set of testing data is guaranteed to be exclusive with the set of training data.
-How to set it: [train_size]+[test_size] must be no larger than the total number of input tweets. Otherwise, an error will be raised. We empirically found when [test_size] reaches 10000, the mrr computed based on the testing data tends to be quite reliable. You might also use statistical tests to find a reasonably reliable [test_size].
+How to set it: We empirically found when [test_size] reaches 10000, the mrr computed based on the testing data tends to be quite reliable. You might also use statistical tests to find a reasonably reliable [test_size].
 
 [kernel_nb_num]
+What is it: The number of neighbors to be considered in kernel smoothing, mainly used for accelerating k-nearest-neighbor search.
+How to set it: Use default value or set it to 1 to 5.
+
 [bandwidth_l]
+What is it: The bandwidth for performing Meanshift clustering on locations.
+How to set it: Use default value or set it to 1e-4 to 5e-3. If the spatial range of your data is quite large (larger than a major city like LA), you can consider enlarge [bandwidth_l] to improve efficiency, at the potential cost of sacrificing some effectiveness.
+
 [bandwidth_t]
+What is it: The bandwidth for performing Meanshift clustering on timestamps.
+How to set it: Use default value or set it to 1e3 to 1e4. 
+
 [kernel_bandwidth_l]
+What is it: The bandwidth for performing kernel smoothing on locations.
+How to set it: Use default value or set it to a similar value as [bandwidth_l]. Quantitative results are not very sensitive to this parameter.
+
 [kernel_bandwidth_t]
-Hi Chao, those are trick... let's discuss over phone
+What is it: The bandwidth for performing kernel smoothing on timestamps.
+How to set it: Use default value or set it to a similar value as [bandwidth_t]. Quantitative results are not very sensitive to this parameter.
 
 [second_order]
 What is it: Whether to encode second order proximity. If set to 0, then first order proximity will be used; if set to 1, second order proximity will be used.
