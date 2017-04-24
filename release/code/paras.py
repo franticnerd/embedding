@@ -8,7 +8,9 @@ def load_params(para_file):
         para = yaml_loader().load(para_file)
     para['embed_algo'] = GraphEmbedLine
     para['rand_seed'] = 1
-    para['category_list'] = []
+    para['category_list'] = ['Food', 'Shop & Service', 'Travel & Transport',\
+                    'College & University', 'Nightlife Spot', 'Residence', 'Outdoors & Recreation',\
+                    'Arts & Entertainment', 'Professional & Other Places']
     return para
 
 
