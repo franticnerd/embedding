@@ -10,8 +10,7 @@ The input of the program is a set of geo-tagged tweets, like the toy example sho
 Suppose you are at the "code/" directory.
 
 You will first need to compile the underlying C++ code once:
-On OSX: make -C GraphEmbed/
-On linux: make -C GraphEmbed/ -f makefile_linux
+make -C GraphEmbed/
 
 After that, you can simply use the following command to run the code:
 python './eval_recovery.py' [your_yaml_file]

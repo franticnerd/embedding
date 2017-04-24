@@ -5,7 +5,7 @@ LIBS = -L/usr/local/lib
 
 
 line : ransampl.o linelib.o main.o
-	$(CC) $(CFLAGS) -o hin2vec ransampl.o linelib.o main.o $(INCLUDES) $(LIBS)
+	$(CC) -o hin2vec ransampl.o linelib.o main.o $(INCLUDES) $(LIBS) $(CFLAGS)
 
 ransampl.o : ransampl.c
 	$(CC) $(CFLAGS) -c ransampl.c $(INCLUDES) $(LIBS)
