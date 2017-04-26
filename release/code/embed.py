@@ -14,10 +14,7 @@ from copy import deepcopy
 from shutil import copyfile, rmtree
 from sklearn.metrics.pairwise import cosine_similarity
 
-def cosine(list1, list2):
-	return cosine_similarity([list1],[list2])[0][0]
-
-class EmbedPredictor(object):
+class CrossMap(object):
 	def __init__(self, pd):
 		self.pd = pd
 		self.lClus = LMeanshiftClus(pd)
@@ -25,7 +22,7 @@ class EmbedPredictor(object):
 		self.nt2vecs = None # center vectors
 		self.nt2cvecs = None # context vectors
 		self.start_time = cur_time()
-		self.embed_algo = self.pd['embed_algo'](self.pd)
+		self.embed_algo = GraphEmbed(pd)
 
 	def fit(self, tweets, voca):
 		random.shuffle(tweets)
@@ -78,7 +75,7 @@ class EmbedPredictor(object):
 
 	def encode_continuous_proximity(self, nt, clus, et2net, nt2nodes):
 		et = nt+nt
-		if self.pd["kernel_nb_num"]>1:
+		if self.pd["encode_continuous"]:
 			nodes = nt2nodes[nt]
 			for n1 in nodes:
 				center = clus.centroids[n1]
@@ -93,28 +90,28 @@ class EmbedPredictor(object):
 		else:
 			return self.nt2vecs
 
+	def get_kernel_smoothed_vec(self, top_nbs, node2vec):
+		top_nbs = [(node,weight) for node, weight in top_nbs if node in node2vec]
+		if not top_nbs:
+			vec = np.zeros(self.pd["dim"])
+		elif top_nbs[0][1]==0:
+			node = top_nbs[0][0]
+			vec = node2vec[node]
+		else:
+			vec = np.average([node2vec[node]*weight for node, weight in top_nbs], axis=0)
+		return vec
+
 	def gen_spatial_feature(self, lat, lng, predict_type):
 		nt2vecs = self.get_nt2vecs('l'==predict_type)
 		location = [lat, lng]
-		if self.pd["kernel_nb_num"]>1: # do kernel smoothing
-			l_vecs = [nt2vecs['l'][l]*weight for l, weight in self.lClus.get_top_nbs(location) if l in nt2vecs['l']]
-			ls_vec = np.average(l_vecs, axis=0) if l_vecs else np.zeros(self.pd["dim"])
-		else:
-			l = self.lClus.predict(location)
-			ls_vec = nt2vecs['l'][l] if l in nt2vecs['l'] else np.zeros(self.pd["dim"])
-		return ls_vec
+		top_nbs = self.lClus.get_top_nbs(location)
+		return self.get_kernel_smoothed_vec(top_nbs, nt2vecs['l'])
 
 	def gen_temporal_feature(self, time, predict_type):
 		nt2vecs = self.get_nt2vecs('t'==predict_type)
 		time = [time]
-		if self.pd["kernel_nb_num"]>1: # do kernel smoothing
-			t_vecs = [nt2vecs['t'][t]*weight for t, weight in self.tClus.get_top_nbs(time) if l in nt2vecs['t']]
-			ts_vec = np.average(t_vecs, axis=0) if t_vecs else np.zeros(self.pd["dim"])
-		else:
-			t = self.tClus.predict(time)
-			ts_vec = nt2vecs['t'][t] if t in nt2vecs['t'] else np.zeros(self.pd["dim"])
-		ts_vec = nt2vecs['t'][t] if t in nt2vecs['t'] else np.zeros(self.pd['dim'])
-		return ts_vec
+		top_nbs = self.tClus.get_top_nbs(time)
+		return self.get_kernel_smoothed_vec(top_nbs, nt2vecs['t'])
 
 	def gen_textual_feature(self, words, predict_type):
 		nt2vecs = self.get_nt2vecs('w'==predict_type)
@@ -137,7 +134,7 @@ class EmbedPredictor(object):
 		if 'c' in self.pd['nt_list']:
 			c_vec = self.gen_category_feature(category, predict_type)
 			vecs.append(c_vec)
-		score = sum([cosine(vec1, vec2) for vec1, vec2 in itertools.combinations(vecs, r=2)])
+		score = sum([self.cosine(vec1, vec2) for vec1, vec2 in itertools.combinations(vecs, r=2)])
 		return round(score, 6)
 
 	def get_vec(self, query):
@@ -153,33 +150,27 @@ class EmbedPredictor(object):
 		else:
 			return nt2vecs['t'][self.tClus.predict(query)]
 
-	def poi2vec(self, poi):
-		l_vec = self.gen_spatial_feature(poi.lat, poi.lng)
-		w_vec = self.gen_textual_feature(poi.name.lower())
-		vecs = [l_vec, w_vec]
-		if 'c' in self.pd['nt_list']:
-			c_vec = self.gen_category_feature(poi.cat)
-			vecs.append(c_vec)
-		return np.average(vecs, axis=0)
-
-	def get_nbs1(self, pois, query, nb_nt, neighbor_num=20):
+	def get_nbs1(self, query, nb_nt, neighbor_num=20):
 		vec_query = self.get_vec(query)
-		nb2vec = {poi:self.poi2vec(poi) for poi in pois} if nb_nt=='p' else self.nt2vecs[nb_nt]
-		nbs = sorted(nb2vec, key=lambda nb:cosine(nb2vec[nb], vec_query), reverse=True)
+		nb2vec = self.get_nt2vecs(False)[nb_nt]
+		nbs = sorted(nb2vec, key=lambda nb:self.cosine(nb2vec[nb], vec_query), reverse=True)
 		nbs = nbs[:neighbor_num]
 		if nb_nt=='l':
 			nbs = [self.lClus.centroids[nb] for nb in nbs]
 		return nbs
 
-	def get_nbs2(self, pois, query1, query2, func, nb_nt, neighbor_num=20):
+	def get_nbs2(self, query1, query2, func, nb_nt, neighbor_num=20):
 		vec_query1 = self.get_vec(query1)
 		vec_query2 = self.get_vec(query2)
-		nb2vec = {poi:self.poi2vec(poi) for poi in pois} if nb_nt=='p' else self.nt2vecs[nb_nt]
-		nbs = sorted(nb2vec, key=lambda nb:func(cosine(nb2vec[nb], vec_query1), cosine(nb2vec[nb], vec_query2)), reverse=True)
+		nb2vec = self.get_nt2vecs(False)[nb_nt]
+		nbs = sorted(nb2vec, key=lambda nb:func(self.cosine(nb2vec[nb], vec_query1), self.cosine(nb2vec[nb], vec_query2)), reverse=True)
 		nbs = nbs[:neighbor_num]
 		if nb_nt=='l':
 			nbs = [self.lClus.centroids[nb] for nb in nbs]
 		return nbs
+
+	def cosine(self, list1, list2):
+		return cosine_similarity([list1],[list2])[0][0]
 
 class Clus(object):
 	def __init__(self, pd):
@@ -212,7 +203,7 @@ class MeanshiftClus(Clus):
 	def __init__(self, pd, bandwidth, kernel_bandwidth):
 		super(MeanshiftClus, self).__init__(pd)
 		self.kernel_bandwidth = kernel_bandwidth
-		self.ms = MeanShift(bandwidth=bandwidth, bin_seeding=True, n_jobs=5)
+		self.ms = MeanShift(bandwidth=bandwidth, bin_seeding=True, n_jobs=10)
 
 	def fit(self, X):
 		X = np.array(X)
@@ -223,8 +214,7 @@ class MeanshiftClus(Clus):
 	def predict(self, x):
 		return self.ms.predict([x])[0]
 
-
-class GraphEmbedLine(object):
+class GraphEmbed(object):
 	def __init__(self, pd):
 		self.pd = pd
 		self.nt2vecs = dict()
@@ -284,73 +274,3 @@ class GraphEmbedLine(object):
 		for f in os.listdir(self.path_prefix): # clean up the tmp files created by this execution
 		    if f.endswith(self.path_suffix):
 		        os.remove(self.path_prefix+f)
-
-
-class GraphEmbedNative(object):
-	def __init__(self, pd):
-		self.pd = pd
-		self.nt2vecs = None
-		self.nt2cvecs = None
-		self.start_time = cur_time()
-
-	def fit(self, nt2nodes, et2net, sample_size):
-		pd = self.pd
-		# initialization not specified in the paper, got wrong at the beginning, corrected after reading the C source code
-		self.nt2vecs = {nt:{node:(np.random.rand(pd['dim'])-0.5)/pd['dim'] for node in nt2nodes[nt]} for nt in nt2nodes}
-		self.nt2cvecs = {nt:{node:(np.random.rand(pd['dim'])-0.5)/pd['dim'] for node in nt2nodes[nt]} for nt in nt2nodes}
-		et2optimizer = {et:self.Optimizer(et2net[et], pd, sample_size) for et in et2net}
-		alpha = pd['alpha']
-		for i in range(sample_size):
-			if i%1000==0:
-				alpha = pd['alpha'] * (1 - float(i) / sample_size)
-				if alpha < pd['alpha']*0.0001:
-					alpha = pd['alpha']*0.0001
-			for et in et2net:
-				tu, tv = et[0], et[1]
-				vecs_u, vecs_v = self.nt2vecs[tu], self.nt2vecs[tv]
-				if pd['second_order']:
-					vecs_v = self.nt2cvecs[tv]
-				et2optimizer[et].sgd_one_step(vecs_u, vecs_v, alpha)
-		return self.nt2vecs, self.nt2cvecs
-
-	class Optimizer(object):
-		def __init__(self, net, pd, sample_size):
-			self.pd = pd
-			u2d = defaultdict(float)
-			v2d = defaultdict(float)
-			for u in net:
-				for v in net[u]:
-					u2d[u] += net[u][v]
-					v2d[v] += net[u][v]
-			self.net = net
-			self.u2samples = {u:iter(np.random.choice( net[u].keys(), 100, 
-								p=self.normed(net[u].values()) )) for u in net}
-			self.nega_samples = iter(np.random.choice( v2d.keys(), int(sample_size)*self.pd['negative'], 
-								p=self.normed(np.power(v2d.values(), 0.75)) ))
-			self.samples = iter(np.random.choice( u2d.keys(), sample_size, 
-								p=self.normed(u2d.values()) ))
-		
-		def sgd_one_step(self, vecs_u, vecs_v, alpha):
-			u = self.samples.next()
-			try:
-				v = self.u2samples[u].next()
-			except StopIteration:
-				self.u2samples[u] = iter(np.random.choice(self.net[u].keys(), 100, 
-										p=self.normed(self.net[u].values()) ))
-				v = self.u2samples[u].next()
-			error_vec = np.zeros(self.pd['dim'])
-			for j in range(self.pd['negative']+1):
-				if j==0:
-					target = v
-					label = 1
-				else:
-					target = self.nega_samples.next()
-					label = 0
-				f = np.dot(vecs_u[u], vecs_v[target])
-				g = (label - expit(f)) * alpha
-				error_vec += g*vecs_v[target]
-				vecs_v[target] += g*vecs_u[u]
-			vecs_u[u] += error_vec
-	
-		def normed(self, x):
-			return x/np.linalg.norm(x, ord=1)

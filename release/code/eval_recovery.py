@@ -1,7 +1,7 @@
 from paras import load_params
 from dataset import read_tweets, get_voca
 from embed import *
-from evaluator import QuantitativeEvaluator
+from evaluator import QuantitativeEvaluator, QualitativeEvaluator
 
 
 def set_rand_seed(pd):
@@ -25,7 +25,7 @@ def read_data(pd):
 
 def train_model(train_data, voca):
     start_time = time.time()
-    predictor = EmbedPredictor(pd)
+    predictor = CrossMap(pd)
     predictor.fit(train_data, voca)
     print 'Model training done, elapsed time: ', round(time.time()-start_time)
     return predictor
@@ -50,8 +50,20 @@ def write_model(model, pd):
             for node, vec in vecs.items():
                 if nt=='l':
                     node = model.lClus.centroids[node]
+                if nt=='t':
+                    node = model.tClus.centroids[node]
                 l = [str(e) for e in [node, list(vec)]]
                 f.write('\x01'.join(l)+'\n')
+
+def run_case_study(model, pd):
+    start_time = time.time()
+    evaluator = QualitativeEvaluator(model, pd['case_dir'])
+    for word in ['food', 'restaurant', 'beach', 'weather', 'clothes', 'nba']:
+        evaluator.getNbs1(word)
+    for location in [[34.043021,-118.2690243], [33.9424, -118.4137], [34.008, -118.4961], [34.0711, -118.4434]]:
+        evaluator.getNbs1(location)
+    evaluator.getNbs2('outdoor', 'weekend')
+    print 'Case study done. Elapsed time: ', round(time.time()-start_time)
 
 def run(pd):
     set_rand_seed(pd)
@@ -59,6 +71,7 @@ def run(pd):
     model = train_model(train_data, voca)
     predict(model, test_data, pd)
     write_model(model, pd)
+    run_case_study(model, pd)
 
 if __name__ == '__main__':
     para_file = None if len(sys.argv) <= 1 else sys.argv[1]
