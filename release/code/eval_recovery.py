@@ -2,7 +2,7 @@ from paras import load_params
 from dataset import read_tweets, get_voca
 from embed import *
 from evaluator import QuantitativeEvaluator, QualitativeEvaluator
-
+import dill as pickle
 
 def set_rand_seed(pd):
     rand_seed = pd['rand_seed']
@@ -41,8 +41,8 @@ def predict(model, test_data, pd):
     print 'Prediction done. Elapsed time: ', round(time.time()-start_time)
 
 
-def write_model(model, pd):
-    directory = pd['model_dir']
+def write_embeddings(model, pd):
+    directory = pd['model_embeddings_dir']
     if not os.path.isdir(directory):
         os.makedirs(directory)
     for nt, vecs in model.nt2vecs.items():
@@ -55,6 +55,7 @@ def write_model(model, pd):
                 l = [str(e) for e in [node, list(vec)]]
                 f.write('\x01'.join(l)+'\n')
 
+
 def run_case_study(model, pd):
     start_time = time.time()
     evaluator = QualitativeEvaluator(model, pd['case_dir'])
@@ -65,15 +66,23 @@ def run_case_study(model, pd):
     evaluator.getNbs2('outdoor', 'weekend')
     print 'Case study done. Elapsed time: ', round(time.time()-start_time)
 
-def run(pd):
+
+def run(pd, load_existing_model=False):
     set_rand_seed(pd)
     train_data, test_data, voca = read_data(pd)
-    model = train_model(train_data, voca)
+    if load_existing_model:
+        model = pickle.load(open(pd['model_pickled_path'],'r'))
+    else:        
+        model = train_model(train_data, voca)
     predict(model, test_data, pd)
-    write_model(model, pd)
     run_case_study(model, pd)
+    if not load_existing_model:
+        write_embeddings(model, pd)
+        pickle.dump(model, open(pd['model_pickled_path'],'w'))
+
 
 if __name__ == '__main__':
     para_file = None if len(sys.argv) <= 1 else sys.argv[1]
     pd = load_params(para_file)  # load parameters as a dict
     run(pd)
+    # run(pd, load_existing_model=True)

@@ -29,10 +29,13 @@ Input file:
 The 8 fields in turn are: tweet_id, user_id, latitude, longitude, datetime, timestamp, list_of_keyphrases, raw_text. 
 The keyphrases in list_of_keyphrases are separated by " " (space), and the words in one keyphrase are separated by "_" (underscore). The list_of_keyphrases is used as textual signals to train the embedding model, while the raw_text is currenly unused.
 
-Output file: 
+Output file - embeddings: 
 2 fields separated by "\x01". 
-The first field in the embedded object. If the embedded object is a spatial hotspot, then the object is represented by the coordinate (latitude, longitude) of the hotspot centroid; if the embedded object is a temporal hotspot, then the object is represented by the hour of the hotspot centroid; if the embedded object is a textual keyphrase, then the object is represented by the textual keyphrase itself.
+The first field in the embedded object. If the embedded object is a spatial hotspot, then the object is represented by the coordinate (latitude, longitude) of the hotspot centroid; if the embedded object is a temporal hotspot, then the object is represented by the "second in a day" of the hotspot centroid; if the embedded object is a textual keyphrase, then the object is represented by the textual keyphrase itself.
 The second field is the learnt embeddings, represented using a Python list (of floats).
+
+Output file - pickled model:
+A serialized model that can be later loaded into memory.
 
 
 ----What are the parameters and how to set them----

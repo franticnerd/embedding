@@ -21,7 +21,6 @@ class CrossMap(object):
 		self.tClus = TMeanshiftClus(pd)
 		self.nt2vecs = None # center vectors
 		self.nt2cvecs = None # context vectors
-		self.start_time = cur_time()
 		self.embed_algo = GraphEmbed(pd)
 
 	def fit(self, tweets, voca):
@@ -142,31 +141,35 @@ class CrossMap(object):
 		# use the "Python type" of the query to determine the "node type" of the query 
 		if type(query)==str:
 			if query in self.pd['category_list']:
-				return nt2vecs['c'][query]
+				return nt2vecs['c'][query], 'c'
 			else:
-				return nt2vecs['w'][query.lower()]
+				return nt2vecs['w'][query.lower()], 'w'
 		elif type(query)==list:
-			return nt2vecs['l'][self.lClus.predict(query)]
+			return nt2vecs['l'][self.lClus.predict(query)], 'l'
 		else:
-			return nt2vecs['t'][self.tClus.predict(query)]
+			return nt2vecs['t'][self.tClus.predict(query)], 't'
 
 	def get_nbs1(self, query, nb_nt, neighbor_num=20):
-		vec_query = self.get_vec(query)
-		nb2vec = self.get_nt2vecs(False)[nb_nt]
+		vec_query, query_nt = self.get_vec(query)
+		nb2vec = self.get_nt2vecs(nb_nt==query_nt)[nb_nt]
 		nbs = sorted(nb2vec, key=lambda nb:self.cosine(nb2vec[nb], vec_query), reverse=True)
 		nbs = nbs[:neighbor_num]
 		if nb_nt=='l':
 			nbs = [self.lClus.centroids[nb] for nb in nbs]
+		if nb_nt=='t':
+			nbs = [time.strftime('%H:%M:%S', time.gmtime(self.tClus.centroids[nb])) for nb in nbs]
 		return nbs
 
 	def get_nbs2(self, query1, query2, func, nb_nt, neighbor_num=20):
-		vec_query1 = self.get_vec(query1)
-		vec_query2 = self.get_vec(query2)
-		nb2vec = self.get_nt2vecs(False)[nb_nt]
+		vec_query1, query1_nt = self.get_vec(query1)
+		vec_query2, query2_nt = self.get_vec(query2)
+		nb2vec = self.get_nt2vecs(nb_nt in [query1_nt,query2_nt])[nb_nt]
 		nbs = sorted(nb2vec, key=lambda nb:func(self.cosine(nb2vec[nb], vec_query1), self.cosine(nb2vec[nb], vec_query2)), reverse=True)
 		nbs = nbs[:neighbor_num]
 		if nb_nt=='l':
 			nbs = [self.lClus.centroids[nb] for nb in nbs]
+		if nb_nt=='t':
+			nbs = [time.strftime('%H:%M:%S', time.gmtime(self.tClus.centroids[nb])) for nb in nbs]
 		return nbs
 
 	def cosine(self, list1, list2):

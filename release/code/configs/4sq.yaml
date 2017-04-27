@@ -3,6 +3,8 @@ tweet_file: !join [*DIR, input/tweets.txt]
 result_dir: !join [*DIR, output/]
 case_dir: !join [*DIR, output/case/]
 model_dir: !join [*DIR, model/]
+model_embeddings_dir: !join [*DIR, model/embeddings/]
+model_pickled_path: !join [*DIR, model/pickled.model]
 
 voca_min: 0
 voca_max: 20000
