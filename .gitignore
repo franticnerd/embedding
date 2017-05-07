@@ -130,5 +130,5 @@ ENV/
 *.out
 *.app
 
-./release/data/
+./release/data
 ./data/
