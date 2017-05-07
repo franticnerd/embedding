@@ -1,22 +1,23 @@
-function package {
-  rm -rf crossmap
-  mkdir crossmap
-  cd crossmap
-  mkdir data
-  mkdir code
-  mkdir scripts
-  mkdir bin
-  cd ..
-  cp -r ../data/ ./crossmap/data/
-  cp -r ../code/ ./crossmap/code/
-  cp -r ../scripts/ ./crossmap/scripts/
-  cp ../README ./crossmap
-  rm crossmap.zip
-  zip -r crossmap.zip crossmap
-  rm -rf ~/Downloads/crossmap/
-  rm ~/Downloads/crossmap.zip
-  mv crossmap ~/Downloads/
-  mv crossmap.zip ~/Downloads/
-}
+rm -rf crossmap
+mkdir crossmap
+cd crossmap
+mkdir data
+mkdir code
+mkdir scripts
 
-package
+echo 'Start copying data!'
+cd ..
+cp -r ../data/ ./crossmap/
+cp -r ../code/ ./crossmap/
+cp -r ../scripts/ ./crossmap/
+cp ../README ./crossmap
+echo 'Finished copying data!'
+
+rm crossmap.zip
+zip -r crossmap.zip crossmap
+echo 'Finished zipping files!'
+
+rm -rf ~/Downloads/crossmap/
+rm -f ~/Downloads/crossmap.zip
+mv crossmap ~/Downloads/
+mv crossmap.zip ~/Downloads/

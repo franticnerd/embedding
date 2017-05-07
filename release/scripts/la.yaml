@@ -2,7 +2,7 @@ data_dir: &DIR ../data/la/
 tweet_file: !join [*DIR, input/tweets.txt]
 model_dir: !join [*DIR, model/]
 model_pickled_path: !join [*DIR, model/pickled.model]
-model_embeddings_dir: !join [*DIR, model/embeddings/]
+model_embeddings_dir: !join [*DIR, output/embeddings/]
 case_dir: !join [*DIR, output/case/]
 
 voca_min: 0

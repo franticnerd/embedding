@@ -8,6 +8,7 @@ case "$(uname -s)" in
     ;;
   Linux)
     echo 'Link data path for Linux'
+    ln -s /shared/data/czhang82/projects/crossmap ./data
     ;;
 esac
 
