@@ -1,3 +1,5 @@
+cd ../code/GraphEmbed/
+make
 
-cd ../code/
+cd ..
 python './train_eval.py' '../scripts/toy.yaml'

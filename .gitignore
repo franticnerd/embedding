@@ -130,5 +130,7 @@ ENV/
 *.out
 *.app
 
+*.o
+./release/code/GraphEmbed/hin2vec
 ./release/data
 ./data/
