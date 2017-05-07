@@ -15,11 +15,12 @@ def load_params(para_file):
 
 def set_default_params():
     pd = dict()
-    pd['data_dir'] = '/Users/chao/data/projects/embedding/tweets-dev/'
+    pd['data_dir'] = '../data/toy/'
     pd['tweet_file'] = pd['data_dir'] + 'input/tweets.txt'
     pd['result_dir'] = pd['data_dir'] + 'output/'
     pd['model_dir'] = pd['data_dir'] + 'model/'
 
+    pd['load_existing_model'] = False
     pd['voca_min'] = 0
     pd['voca_max'] = 20000
     pd['dim'] = 10
