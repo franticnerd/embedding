@@ -1,6 +1,10 @@
 ----What is the code doing----
 
-This code base implements "Regions, Periods, Activities: Uncovering Urban Dynamics via Cross-Modal Representation Learning" published at WWW 2017.
+This software is an implementation of the following paper:
+
+"Regions, Periods, Activities: Uncovering Urban Dynamics via Cross-Modal Representation Learning",
+Chao Zhang, Keyang Zhang, Quan Yuan, Haoruo Peng, Yu Zheng, Tim Hanratty, Shaowen Wang, and Jiawei Han,
+International World Wide Web Conference (WWW), 2017
 
 The input of the program is a set of geo-tagged tweets, like the toy example shown in "data/toy/input/tweets.txt". The output of the program is the embeddings for spatial hotspots, temporal hotspots and textual keyphrases, learnt from the training data (a subset of your input tweets). The mean rank (mr) and mean reciprocal rank (mrr) evaluated on the testing data (those input tweets left out of the training data) will also be printed.
 
@@ -13,13 +17,13 @@ You will first need to compile the underlying C++ code once:
 make -C GraphEmbed/
 
 After that, you can simply use the following command to run the code:
-python './eval_recovery.py' [your_yaml_file]
+python './train_eval.py' [your_yaml_file]
 
 [your_yaml_file] will be used to specify:
 1) the paths of your input tweets and output models;
 2) your personalized parameters. 
 
-One example yaml file is shown in "code/configs/toy.yaml".
+One example yaml file is shown in "scripts/toy.yaml".
 
 
 ----What is the format for input and output data----
@@ -40,7 +44,7 @@ A serialized model that can be later loaded into memory.
 
 ----What are the parameters and how to set them----
 
-One set of default parameters is provided in the "code/configs/toy.yaml" file.
+One set of default parameters is provided in the "scripts/toy.yaml" file.
 
 In the following we describe the parameters one by one, with some advice in how to set them.
 
@@ -107,3 +111,13 @@ How to set it: [second_order] should only be set to 0 or 1. First order proximit
 [use_context_vec]
 What is it: Will only be used if [second_order] is set to 1, i.e., second order proximity is used. If [use_context_vec] is set to 1, when predicting a certain type in the testing phase, context vectors instead of center vectors will be used for all other types (in computing cosine similarity).
 How to set it: [use_context_vec] should only be set to 0 or 1. In our study, we found [use_context_vec]=1 gives better mrr.
+
+
+[load_existing_model]
+What is it: Will determine whether to train the model from scratch or load the model from a previously trained model 
+How to set it: Please set it to 0 if you are training the model using the specified parameters for the first time, otherwise you could set it to 1.
+
+
+[perform_case_study]
+What is it: Will determine whether to perform case study using the trained model
+How to set it: Set it to 1 if you want to perform case study and retrieve top similar units for some example inputs.

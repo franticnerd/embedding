@@ -67,22 +67,23 @@ def run_case_study(model, pd):
     print 'Case study done. Elapsed time: ', round(time.time()-start_time)
 
 
-def run(pd, load_existing_model=False):
+def run(pd):
     set_rand_seed(pd)
     train_data, test_data, voca = read_data(pd)
+    load_existing_model = pd['load_existing_model']
     if load_existing_model:
         model = pickle.load(open(pd['model_pickled_path'],'r'))
     else:        
         model = train_model(train_data, voca)
-    predict(model, test_data, pd)
-    run_case_study(model, pd)
-    if not load_existing_model:
         write_embeddings(model, pd)
         pickle.dump(model, open(pd['model_pickled_path'],'w'))
+    predict(model, test_data, pd)
+    perform_case_study = pd['perform_case_study']
+    if perform_case_study:
+        run_case_study(model, pd)
 
 
 if __name__ == '__main__':
     para_file = None if len(sys.argv) <= 1 else sys.argv[1]
     pd = load_params(para_file)  # load parameters as a dict
     run(pd)
-    # run(pd, load_existing_model=True)
