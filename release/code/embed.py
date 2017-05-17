@@ -74,14 +74,13 @@ class CrossMap(object):
 
 	def encode_continuous_proximity(self, nt, clus, et2net, nt2nodes):
 		et = nt+nt
-		if self.pd["encode_continuous"]:
-			nodes = nt2nodes[nt]
-			for n1 in nodes:
-				center = clus.centroids[n1]
-				for n2, proximity in clus.get_top_nbs(center):
-					if n1!=n2:
-						et2net[et][n1][n2] = proximity
-						et2net[et][n2][n1] = proximity
+		nodes = nt2nodes[nt]
+		for n1 in nodes:
+			center = clus.centroids[n1]
+			for n2, proximity in clus.get_top_nbs(center):
+				if n1!=n2:
+					et2net[et][n1][n2] = proximity
+					et2net[et][n2][n1] = proximity
 
 	def get_nt2vecs(self, is_predict_type):
 		if not is_predict_type and self.pd['second_order'] and self.pd['use_context_vec']:
